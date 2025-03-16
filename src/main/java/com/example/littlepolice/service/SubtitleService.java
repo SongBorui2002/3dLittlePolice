@@ -4,6 +4,7 @@ import com.example.littlepolice.model.SubtitleEntry;
 import com.example.littlepolice.util.TokenCalculator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.*;
 import java.util.regex.Pattern;
@@ -16,7 +17,12 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class SubtitleService {
-    private static final int MAX_BATCH_SIZE = 4000; // 每批最大字符数
+    @Value("${subtitle.batch.max-size:4000}")
+    private int maxBatchSize; // 每批最大字符数，可通过配置文件调整
+    
+    @Value("${subtitle.batch.max-tokens:2000}")
+    private int maxBatchTokens; // 每批最大token数，可通过配置文件调整
+    
     private static final Pattern TIME_CODE_PATTERN = Pattern.compile("\\d{2}:\\d{2}:\\d{2},\\d{3}\\s*-->\\s*\\d{2}:\\d{2}:\\d{2},\\d{3}");
 
     private final TokenCalculator tokenCalculator;
@@ -72,6 +78,7 @@ public class SubtitleService {
         StringBuilder currentBatch = new StringBuilder();
         List<Integer> currentIndices = new ArrayList<>();
         int currentSize = 0;
+        int currentTokens = 0;
         
         for (int i = 0; i < entries.size(); i++) {
             SubtitleEntry entry = entries.get(i);
@@ -79,16 +86,20 @@ public class SubtitleService {
             
             // 检查是否需要修正
             if (entry.isNeedsCorrection()) {
-                // 如果当前批次加上新文本会超过最大大小，创建新批次
-                if (currentSize + text.length() + 2 > MAX_BATCH_SIZE && currentSize > 0) {
+                int textTokens = tokenCalculator.calculateTokens(text);
+                
+                // 如果当前批次加上新文本会超过最大大小或token数，创建新批次
+                if ((currentSize + text.length() + 2 > maxBatchSize || 
+                     currentTokens + textTokens > maxBatchTokens) && 
+                    currentSize > 0) {
                     String batchText = currentBatch.toString();
-                    int tokenCount = tokenCalculator.calculateTokens(batchText);
                     batches.add(new BatchCorrection(batchText, 
                                                   new ArrayList<>(currentIndices),
-                                                  tokenCount));
+                                                  currentTokens));
                     currentBatch = new StringBuilder();
                     currentIndices = new ArrayList<>();
                     currentSize = 0;
+                    currentTokens = 0;
                 }
                 
                 // 添加到当前批次
@@ -99,6 +110,7 @@ public class SubtitleService {
                 currentBatch.append(text);
                 currentIndices.add(i);
                 currentSize += text.length();
+                currentTokens += textTokens;
             }
         }
         

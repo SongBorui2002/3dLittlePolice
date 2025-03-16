@@ -47,7 +47,7 @@ public class SubtitleController {
     @PostMapping("/correct")
     public ResponseEntity<?> correctSubtitle(@RequestParam("file") MultipartFile file) {
         try {
-            log.info("开始处理字幕文件: {}", file.getOriginalFilename());
+            log.info("开始处理字幕文件: {}, 大小: {} bytes", file.getOriginalFilename(), file.getSize());
             
             // 确保临时目录存在
             Path tempDir = Paths.get(tempFilePath);
@@ -79,22 +79,58 @@ public class SubtitleController {
             log.info("开始分批处理文本，共 {} 批", batches.size());
             for (int i = 0; i < batches.size(); i++) {
                 BatchCorrection batch = batches.get(i);
-                log.info("处理第 {}/{} 批，包含 {} 条字幕", i + 1, batches.size(), batch.getEntryIndices().size());
+                log.info("处理第 {}/{} 批，包含 {} 条字幕，{} 个token", 
+                    i + 1, batches.size(), 
+                    batch.getEntryIndices().size(),
+                    batch.getTokenCount());
                 
-                try {
-                    // 调用 DeepSeek API 修正文本
-                    String correctedText = deepSeekService.correctText(batch.getText());
-                    
-                    // 更新修正后的文本
-                    subtitleService.updateCorrectedText(entries, batch, correctedText);
-                    
-                    // 每批处理后等待一小段时间，避免API限制
-                    if (i < batches.size() - 1) {
-                        Thread.sleep(1000); // 等待1秒
+                // 添加重试机制
+                int maxRetries = 3;
+                int retryCount = 0;
+                long retryDelay = 2000; // 初始重试延迟2秒
+                
+                while (retryCount < maxRetries) {
+                    try {
+                        // 调用 DeepSeek API 修正文本
+                        long startTime = System.currentTimeMillis();
+                        String correctedText = deepSeekService.correctText(batch.getText());
+                        long endTime = System.currentTimeMillis();
+                        log.info("第 {}/{} 批API调用耗时: {}ms", i + 1, batches.size(), endTime - startTime);
+                        
+                        // 更新修正后的文本
+                        subtitleService.updateCorrectedText(entries, batch, correctedText);
+                        
+                        // 成功处理，跳出重试循环
+                        break;
+                        
+                    } catch (Exception e) {
+                        retryCount++;
+                        if (retryCount >= maxRetries) {
+                            log.error("处理第 {}/{} 批失败，已重试 {} 次", i + 1, batches.size(), retryCount, e);
+                            throw new RuntimeException("处理失败，已重试" + retryCount + "次: " + e.getMessage());
+                        }
+                        
+                        log.warn("处理第 {}/{} 批时发生错误，准备第 {} 次重试，等待 {}ms", 
+                            i + 1, batches.size(), retryCount + 1, retryDelay, e);
+                        
+                        try {
+                            Thread.sleep(retryDelay);
+                            retryDelay *= 2; // 指数退避
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("重试等待被中断", ie);
+                        }
                     }
-                } catch (Exception e) {
-                    log.error("处理第 {}/{} 批时发生错误", i + 1, batches.size(), e);
-                    throw e;
+                }
+                
+                // 批次间等待时间
+                if (i < batches.size() - 1) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("批次间等待被中断", e);
+                    }
                 }
             }
             

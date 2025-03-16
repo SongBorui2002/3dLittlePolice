@@ -132,6 +132,12 @@
             background-color: #f9f9f9;
             border-radius: 4px;
         }
+        .subtitle-entry:hover {
+            background-color: #f0f0f0;
+        }
+        .subtitle-entry.highlighted {
+            background-color: #e3f2fd;
+        }
         .subtitle-entry .time {
             color: #666;
             font-size: 0.9em;
@@ -400,12 +406,21 @@
             comparisonContainer.style.display = 'block';
             updatePagination();
             showCurrentPage();
+            setupSyncScroll();
         }
 
-        function updatePagination() {
-            const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
-            totalPagesSpan.textContent = totalPages;
-            updatePageButtons();
+        function setupSyncScroll() {
+            const originalColumn = document.getElementById('originalSubtitles');
+            const correctedColumn = document.getElementById('correctedSubtitles');
+
+            // 简单的同步滚动
+            originalColumn.onscroll = function() {
+                correctedColumn.scrollTop = this.scrollTop;
+            };
+
+            correctedColumn.onscroll = function() {
+                originalColumn.scrollTop = this.scrollTop;
+            };
         }
 
         function showCurrentPage() {
@@ -430,8 +445,35 @@
         function createSubtitleEntry(subtitle, original = null) {
             let text = subtitle.text;
             if (original && text !== original.text) {
-                // 高亮显示差异
-                text = `<span class="diff">${text}</span>`;
+                // 找出实际的差异部分
+                const originalChars = original.text.split('');
+                const correctedChars = text.split('');
+                let diffStart = -1;
+                let diffEnd = -1;
+                
+                // 从前向后找第一个不同的字符
+                for (let i = 0; i < Math.min(originalChars.length, correctedChars.length); i++) {
+                    if (originalChars[i] !== correctedChars[i]) {
+                        diffStart = i;
+                        break;
+                    }
+                }
+                
+                // 从后向前找最后一个不同的字符
+                for (let i = 1; i <= Math.min(originalChars.length, correctedChars.length); i++) {
+                    if (originalChars[originalChars.length - i] !== correctedChars[correctedChars.length - i]) {
+                        diffEnd = correctedChars.length - i + 1;
+                        break;
+                    }
+                }
+                
+                // 如果找到了差异
+                if (diffStart !== -1 && diffEnd !== -1) {
+                    // 构建带有高亮的文本
+                    text = text.substring(0, diffStart) +
+                           `<span class="diff">${text.substring(diffStart, diffEnd)}</span>` +
+                           text.substring(diffEnd);
+                }
             }
             
             return `
@@ -440,6 +482,12 @@
                     <div class="text">${text}</div>
                 </div>
             `;
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
+            totalPagesSpan.textContent = totalPages;
+            updatePageButtons();
         }
 
         function updatePageButtons() {

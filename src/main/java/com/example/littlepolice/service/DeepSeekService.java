@@ -30,15 +30,28 @@ public class DeepSeekService {
             .addInterceptor(logging)
             .addInterceptor(chain -> {
                 okhttp3.Request originalRequest = chain.request();
-                okhttp3.Request newRequest = originalRequest.newBuilder()
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .build();
-                return chain.proceed(newRequest);
+                long startTime = System.currentTimeMillis();
+                okhttp3.Response response = null;
+                try {
+                    okhttp3.Request newRequest = originalRequest.newBuilder()
+                        .header("Authorization", "Bearer " + apiKey)
+                        .header("Content-Type", "application/json")
+                        .build();
+                    response = chain.proceed(newRequest);
+                    long endTime = System.currentTimeMillis();
+                    log.info("API请求处理时间: {} 毫秒, URL: {}", endTime - startTime, originalRequest.url());
+                    return response;
+                } catch (Exception e) {
+                    log.error("API请求失败，耗时: {} 毫秒, URL: {}, 错误: {}", 
+                        System.currentTimeMillis() - startTime, 
+                        originalRequest.url(), 
+                        e.getMessage());
+                    throw e;
+                }
             })
-            .connectTimeout(Duration.ofSeconds(30))
-            .readTimeout(Duration.ofSeconds(30))
-            .writeTimeout(Duration.ofSeconds(30))
+            .connectTimeout(Duration.ofSeconds(300))
+            .readTimeout(Duration.ofSeconds(300))
+            .writeTimeout(Duration.ofSeconds(300))
             .build();
 
         Retrofit retrofit = new Retrofit.Builder()
