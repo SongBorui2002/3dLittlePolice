@@ -140,6 +140,7 @@
         }
         .subtitle-entry.modified {
             background-color: #ffebee;
+            border-left: 3px solid #ef5350;
         }
         .subtitle-entry .time {
             color: #666;
@@ -148,6 +149,11 @@
         }
         .subtitle-entry .text {
             line-height: 1.4;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .text.modified {
+            background-color: #ffebee;
         }
         .diff {
             font-weight: bold;
@@ -190,164 +196,164 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>的得地小警察</h1>
-        <div class="upload-area" id="dropArea">
-            <input type="file" id="fileInput" accept=".srt" />
-            <p>将 .srt 文件拖放到此处，或</p>
-            <button class="btn" onclick="document.getElementById('fileInput').click()">选择文件</button>
-            <div class="selected-file" id="selectedFile"></div>
-        </div>
-        <button class="btn" id="startButton">开始修改</button>
-        <div class="progress-container" id="progressContainer">
-            <div class="progress-bar" id="progressBar"></div>
-        </div>
-        <div id="status"></div>
-        <div id="downloadArea">
-            <button class="download-btn" id="downloadBtn">下载修正后的字幕</button>
-        </div>
-        <div class="comparison-container" id="comparisonContainer">
-            <h2>字幕对照</h2>
-            <div class="subtitle-grid">
-                <div class="subtitle-column" id="originalSubtitles">
-                    <h3>原始字幕</h3>
-                    <div id="originalContent"></div>
-                </div>
-                <div class="subtitle-column" id="correctedSubtitles">
-                    <h3>修正后字幕</h3>
-                    <div id="correctedContent"></div>
-                </div>
+<div class="container">
+    <h1>的得地小警察</h1>
+    <div class="upload-area" id="dropArea">
+        <input type="file" id="fileInput" accept=".srt" />
+        <p>将 .srt 文件拖放到此处，或</p>
+        <button class="btn" onclick="document.getElementById('fileInput').click()">选择文件</button>
+        <div class="selected-file" id="selectedFile"></div>
+    </div>
+    <button class="btn" id="startButton">开始修改</button>
+    <div class="progress-container" id="progressContainer">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div id="status"></div>
+    <div id="downloadArea">
+        <button class="download-btn" id="downloadBtn">下载修正后的字幕</button>
+    </div>
+    <div class="comparison-container" id="comparisonContainer">
+        <h2>字幕对照</h2>
+        <div class="subtitle-grid">
+            <div class="subtitle-column" id="originalSubtitles">
+                <h3>原始字幕</h3>
+                <div id="originalContent"></div>
             </div>
-            <div class="pagination" id="pagination">
-                <button id="prevPage">上一页</button>
-                <span class="pagination-info">第 <span id="currentPage">1</span> 页，共 <span id="totalPages">1</span> 页</span>
-                <button id="nextPage">下一页</button>
+            <div class="subtitle-column" id="correctedSubtitles">
+                <h3>修正后字幕</h3>
+                <div id="correctedContent"></div>
             </div>
+        </div>
+        <div class="pagination" id="pagination">
+            <button id="prevPage">上一页</button>
+            <span class="pagination-info">第 <span id="currentPage">1</span> 页，共 <span id="totalPages">1</span> 页</span>
+            <button id="nextPage">下一页</button>
         </div>
     </div>
+</div>
 
-    <script>
-        const dropArea = document.getElementById('dropArea');
-        const fileInput = document.getElementById('fileInput');
-        const status = document.getElementById('status');
-        const downloadArea = document.getElementById('downloadArea');
-        const downloadBtn = document.getElementById('downloadBtn');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
-        const startButton = document.getElementById('startButton');
-        const selectedFile = document.getElementById('selectedFile');
-        const comparisonContainer = document.getElementById('comparisonContainer');
-        const originalContent = document.getElementById('originalContent');
-        const correctedContent = document.getElementById('correctedContent');
-        const prevPageBtn = document.getElementById('prevPage');
-        const nextPageBtn = document.getElementById('nextPage');
-        const currentPageSpan = document.getElementById('currentPage');
-        const totalPagesSpan = document.getElementById('totalPages');
-        
-        let correctedFileUrl = null;
-        let selectedSrtFile = null;
-        let originalSubtitles = [];
-        let correctedSubtitles = [];
-        let currentPage = 1;
-        const ITEMS_PER_PAGE = 100;
+<script>
+    const dropArea = document.getElementById('dropArea');
+    const fileInput = document.getElementById('fileInput');
+    const status = document.getElementById('status');
+    const downloadArea = document.getElementById('downloadArea');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const startButton = document.getElementById('startButton');
+    const selectedFile = document.getElementById('selectedFile');
+    const comparisonContainer = document.getElementById('comparisonContainer');
+    const originalContent = document.getElementById('originalContent');
+    const correctedContent = document.getElementById('correctedContent');
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const currentPageSpan = document.getElementById('currentPage');
+    const totalPagesSpan = document.getElementById('totalPages');
 
-        // 拖放处理
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, preventDefaults, false);
+    let correctedFileUrl = null;
+    let selectedSrtFile = null;
+    let originalSubtitles = [];
+    let correctedSubtitles = [];
+    let currentPage = 1;
+    const ITEMS_PER_PAGE = 100;
+
+    // 拖放处理
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => {
+            dropArea.classList.add('drag-over');
         });
+    });
 
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.addEventListener(eventName, () => {
-                dropArea.classList.add('drag-over');
-            });
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => {
+            dropArea.classList.remove('drag-over');
         });
+    });
 
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, () => {
-                dropArea.classList.remove('drag-over');
-            });
-        });
+    dropArea.addEventListener('drop', handleDrop);
+    fileInput.addEventListener('change', handleFileSelect);
+    startButton.addEventListener('click', processFile);
 
-        dropArea.addEventListener('drop', handleDrop);
-        fileInput.addEventListener('change', handleFileSelect);
-        startButton.addEventListener('click', processFile);
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const file = dt.files[0];
+        handleFileSelection(file);
+    }
 
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const file = dt.files[0];
-            handleFileSelection(file);
+    function handleFileSelect(e) {
+        const file = e.target.files[0];
+        handleFileSelection(file);
+    }
+
+    function handleFileSelection(file) {
+        if (!file || !file.name.toLowerCase().endsWith('.srt')) {
+            showStatus('请选择 .srt 格式的字幕文件', 'error');
+            return;
         }
 
-        function handleFileSelect(e) {
-            const file = e.target.files[0];
-            handleFileSelection(file);
+        selectedSrtFile = file;
+        selectedFile.textContent = `已选择: ${file.name}`;
+        startButton.style.display = 'block';
+        comparisonContainer.style.display = 'none';
+        downloadArea.style.display = 'none';
+        showStatus('', '');
+    }
+
+    function processFile() {
+        if (!selectedSrtFile) {
+            showStatus('请先选择字幕文件', 'error');
+            return;
         }
 
-        function handleFileSelection(file) {
-            if (!file || !file.name.toLowerCase().endsWith('.srt')) {
-                showStatus('请选择 .srt 格式的字幕文件', 'error');
-                return;
-            }
-            
-            selectedSrtFile = file;
-            selectedFile.textContent = `已选择: ${file.name}`;
-            startButton.style.display = 'block';
-            comparisonContainer.style.display = 'none';
-            downloadArea.style.display = 'none';
-            showStatus('', '');
-        }
+        const formData = new FormData();
+        formData.append('file', selectedSrtFile);
 
-        function processFile() {
-            if (!selectedSrtFile) {
-                showStatus('请先选择字幕文件', 'error');
-                return;
-            }
+        showStatus('正在处理字幕文件，请稍候...', 'processing');
+        progressContainer.style.display = 'block';
+        startButton.disabled = true;
+        downloadArea.style.display = 'none';
 
-            const formData = new FormData();
-            formData.append('file', selectedSrtFile);
+        // 读取原始字幕文件
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            originalSubtitles = parseSrt(e.target.result);
 
-            showStatus('正在处理字幕文件，请稍候...', 'processing');
-            progressContainer.style.display = 'block';
-            startButton.disabled = true;
-            downloadArea.style.display = 'none';
-            
-            // 读取原始字幕文件
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                originalSubtitles = parseSrt(e.target.result);
-                
-                // 模拟进度条
-                let progress = 0;
-                const progressInterval = setInterval(() => {
-                    if (progress < 90) {
-                        progress += Math.random() * 10;
-                        progressBar.style.width = Math.min(progress, 90) + '%';
-                    }
-                }, 500);
+            // 模拟进度条
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += Math.random() * 10;
+                    progressBar.style.width = Math.min(progress, 90) + '%';
+                }
+            }, 500);
 
-                fetch('/correct', {
-                    method: 'POST',
-                    body: formData
-                })
+            fetch('/correct', {
+                method: 'POST',
+                body: formData
+            })
                 .then(response => {
                     clearInterval(progressInterval);
                     progressBar.style.width = '100%';
-                    
+
                     if (!response.ok) {
                         return response.text().then(text => {
                             throw new Error(text || '处理文件时发生错误');
                         });
                     }
-                    
+
                     const disposition = response.headers.get('Content-Disposition');
                     const filenameMatch = disposition && disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
                     const filename = filenameMatch && filenameMatch[1].replace(/['"]/g, '');
-                    
+
                     return response.blob().then(blob => ({
                         blob: blob,
                         filename: filename || 'corrected.srt'
@@ -363,7 +369,7 @@
                         a.click();
                         document.body.removeChild(a);
                     };
-                    
+
                     // 读取修正后的字幕文件
                     const reader = new FileReader();
                     reader.onload = function(e) {
@@ -371,7 +377,7 @@
                         showComparison();
                     };
                     reader.readAsText(blob);
-                    
+
                     showStatus('字幕文件处理完成！', 'success');
                     downloadArea.style.display = 'block';
                     startButton.disabled = false;
@@ -383,179 +389,124 @@
                     showStatus(error.message || '处理文件时发生错误', 'error');
                     startButton.disabled = false;
                 });
-            };
-            reader.readAsText(selectedSrtFile);
-        }
+        };
+        reader.readAsText(selectedSrtFile);
+    }
 
-        function parseSrt(content) {
-            const subtitles = [];
-            const blocks = content.trim().split(/\n\s*\n/);
-            
-            for (const block of blocks) {
-                const lines = block.trim().split('\n');
-                if (lines.length >= 3) {
-                    const index = parseInt(lines[0]);
-                    const time = lines[1];
-                    const text = lines.slice(2).join('\n');
-                    subtitles.push({ index, time, text });
-                }
+    function parseSrt(content) {
+        const subtitles = [];
+        const blocks = content.trim().split(/\n\s*\n/);
+
+        for (const block of blocks) {
+            const lines = block.trim().split('\n');
+            if (lines.length >= 3) {
+                const index = parseInt(lines[0]);
+                const time = lines[1];
+                const text = lines.slice(2).join('\n');
+                subtitles.push({ index, time, text });
             }
-            
-            return subtitles;
         }
 
-        function showComparison() {
-            comparisonContainer.style.display = 'block';
-            updatePagination();
+        return subtitles;
+    }
+
+    function showComparison() {
+        comparisonContainer.style.display = 'block';
+        updatePagination();
+        showCurrentPage();
+        setupSyncScroll();
+    }
+
+    function setupSyncScroll() {
+        const originalColumn = document.getElementById('originalSubtitles');
+        const correctedColumn = document.getElementById('correctedSubtitles');
+
+        // 简单的同步滚动
+        originalColumn.onscroll = function() {
+            correctedColumn.scrollTop = this.scrollTop;
+        };
+
+        correctedColumn.onscroll = function() {
+            originalColumn.scrollTop = this.scrollTop;
+        };
+    }
+
+    function showCurrentPage() {
+        const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIdx = startIdx + ITEMS_PER_PAGE;
+
+        originalContent.innerHTML = '';
+        correctedContent.innerHTML = '';
+
+        for (let i = startIdx; i < Math.min(endIdx, originalSubtitles.length); i++) {
+            const original = originalSubtitles[i];
+            const corrected = correctedSubtitles[i];
+
+            originalContent.innerHTML += createSubtitleEntry(original);
+            correctedContent.innerHTML += createSubtitleEntry(corrected, original);
+        }
+
+        currentPageSpan.textContent = currentPage;
+        updatePageButtons();
+    }
+
+    function createSubtitleEntry(subtitle, original = null) {
+        let className = "subtitle-entry";
+        let textClass = "";
+
+        if (original) {
+            const originalText = original.text.trim().replace(/\r?\n/g, ' ').normalize();
+            const newText = subtitle.text.trim().replace(/\r?\n/g, ' ').normalize();
+
+            if (originalText !== newText) {
+                className += " modified";
+                textClass = "modified";
+            }
+        }
+
+        return `
+        <div class="${className}">
+            <div class="time">${subtitle.index} | ${subtitle.time}</div>
+            <div class="text ${textClass}">${subtitle.text}</div>
+        </div>
+    `;
+    }
+
+    function updatePagination() {
+        const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
+        totalPagesSpan.textContent = totalPages;
+        updatePageButtons();
+    }
+
+    function updatePageButtons() {
+        const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
+        prevPageBtn.disabled = currentPage === 1;
+        nextPageBtn.disabled = currentPage === totalPages;
+    }
+
+    prevPageBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
             showCurrentPage();
-            setupSyncScroll();
         }
+    });
 
-        function setupSyncScroll() {
-            const originalColumn = document.getElementById('originalSubtitles');
-            const correctedColumn = document.getElementById('correctedSubtitles');
-
-            // 简单的同步滚动
-            originalColumn.onscroll = function() {
-                correctedColumn.scrollTop = this.scrollTop;
-            };
-
-            correctedColumn.onscroll = function() {
-                originalColumn.scrollTop = this.scrollTop;
-            };
+    nextPageBtn.addEventListener('click', () => {
+        const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
+        if (currentPage < totalPages) {
+            currentPage++;
+            showCurrentPage();
         }
+    });
 
-        function showCurrentPage() {
-            const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-            const endIdx = startIdx + ITEMS_PER_PAGE;
-            
-            originalContent.innerHTML = '';
-            correctedContent.innerHTML = '';
-            
-            for (let i = startIdx; i < Math.min(endIdx, originalSubtitles.length); i++) {
-                const original = originalSubtitles[i];
-                const corrected = correctedSubtitles[i];
-                
-                originalContent.innerHTML += createSubtitleEntry(original);
-                correctedContent.innerHTML += createSubtitleEntry(corrected, original);
-            }
-            
-            currentPageSpan.textContent = currentPage;
-            updatePageButtons();
+    function showStatus(message, type) {
+        status.textContent = message;
+        status.style.display = message ? 'block' : 'none';
+        status.className = '';
+        if (type) {
+            status.classList.add('status-' + type);
         }
-
-        function createSubtitleEntry(subtitle, original = null) {
-            let text = subtitle.text;
-            if (original && text !== original.text) {
-                // 找出实际的差异部分
-                const originalChars = original.text.split('');
-                const correctedChars = text.split('');
-                let diffStart = -1;
-                let diffEnd = -1;
-                
-                // 从前向后找第一个不同的字符
-                for (let i = 0; i < Math.min(originalChars.length, correctedChars.length); i++) {
-                    if (originalChars[i] !== correctedChars[i]) {
-                        diffStart = i;
-                        break;
-                    }
-                }
-                
-                // 从后向前找最后一个不同的字符
-                for (let i = 1; i <= Math.min(originalChars.length, correctedChars.length); i++) {
-                    if (originalChars[originalChars.length - i] !== correctedChars[correctedChars.length - i]) {
-                        diffEnd = correctedChars.length - i + 1;
-                        break;
-                    }
-                }
-                
-                // 如果找到了差异
-                if (diffStart !== -1 && diffEnd !== -1) {
-                    // 构建带有高亮的文本
-                    text = text.substring(0, diffStart) +
-                           `<span class="diff">${text.substring(diffStart, diffEnd)}</span>` +
-                           text.substring(diffEnd);
-                }
-            }
-            
-            return `
-                <div class="subtitle-entry">
-                    <div class="time">${subtitle.index} | ${subtitle.time}</div>
-                    <div class="text">${text}</div>
-                </div>
-            `;
-        }
-
-        function updatePagination() {
-            const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
-            totalPagesSpan.textContent = totalPages;
-            updatePageButtons();
-        }
-
-        function updatePageButtons() {
-            const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
-            prevPageBtn.disabled = currentPage === 1;
-            nextPageBtn.disabled = currentPage === totalPages;
-        }
-
-        prevPageBtn.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                showCurrentPage();
-            }
-        });
-
-        nextPageBtn.addEventListener('click', () => {
-            const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
-            if (currentPage < totalPages) {
-                currentPage++;
-                showCurrentPage();
-            }
-        });
-
-        function showStatus(message, type) {
-            status.textContent = message;
-            status.style.display = message ? 'block' : 'none';
-            status.className = '';
-            if (type) {
-                status.classList.add('status-' + type);
-            }
-        }
-
-        function displaySubtitles(page) {
-            const start = (page - 1) * ITEMS_PER_PAGE;
-            const end = start + ITEMS_PER_PAGE;
-            
-            originalContent.innerHTML = '';
-            correctedContent.innerHTML = '';
-            
-            for (let i = start; i < Math.min(end, originalSubtitles.length); i++) {
-                const originalEntry = document.createElement('div');
-                originalEntry.className = 'subtitle-entry';
-                originalEntry.innerHTML = `
-                    <div class="time">${originalSubtitles[i].id}</div>
-                    <div class="time">${originalSubtitles[i].time}</div>
-                    <div class="text">${originalSubtitles[i].text}</div>
-                `;
-                
-                const correctedEntry = document.createElement('div');
-                const hasModification = correctedSubtitles[i].text !== originalSubtitles[i].text;
-                correctedEntry.className = `subtitle-entry${hasModification ? ' modified' : ''}`;
-                correctedEntry.innerHTML = `
-                    <div class="time">${correctedSubtitles[i].id}</div>
-                    <div class="time">${correctedSubtitles[i].time}</div>
-                    <div class="text">${correctedSubtitles[i].text.replace(/[的得地]/g, match => 
-                        originalSubtitles[i].text.includes(match) && 
-                        correctedSubtitles[i].text.indexOf(match) === originalSubtitles[i].text.indexOf(match) ? 
-                        match : `<span class="diff">${match}</span>`)}</div>
-                `;
-                
-                originalContent.appendChild(originalEntry);
-                correctedContent.appendChild(correctedEntry);
-            }
-            
-            updatePaginationControls();
-        }
-    </script>
+    }
+</script>
 </body>
-</html> 
+</html>
