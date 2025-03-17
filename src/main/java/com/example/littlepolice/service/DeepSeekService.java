@@ -90,7 +90,7 @@ public class DeepSeekService implements DisposableBean {
             ChatCompletionRequest request = ChatCompletionRequest.builder()
                 .model("deepseek-chat")
                 .messages(Arrays.asList(
-                    new ChatMessage("system", "你是一个中文语法检查助手，专门负责修正文本中的'的得地'用法。请只返回修改后的文本，不需要解释。"),
+                    new ChatMessage("system", "你是一个中文语法检查助手，专门负责修正文本中的'的得地'用法。请只返回修改后的文本，不需要解释。请注意只修改“的得地”的错误用法，无需修正其他错误"),
                     new ChatMessage("user", text)
                 ))
                 .build();

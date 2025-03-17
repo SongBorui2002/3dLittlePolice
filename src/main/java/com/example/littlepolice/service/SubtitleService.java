@@ -39,41 +39,54 @@ public class SubtitleService {
 
     public List<SubtitleEntry> parseSrtContent(String content) {
         List<SubtitleEntry> entries = new ArrayList<>();
-        String[] blocks = content.trim().split("\\n\\s*\\n");
-        
+
+        // 兼容 Windows 和 macOS/Linux 换行符
+        String[] blocks = content.trim().split("\\r?\\n\\s*\\r?\\n");
+
         for (String block : blocks) {
-            String[] lines = block.trim().split("\\n");
+            String[] lines = block.trim().split("\\r?\\n");
+
             if (lines.length >= 3) {
                 try {
-                    int index = Integer.parseInt(lines[0].trim());
+                    // 去除 UTF-8 BOM（\uFEFF）并确保序号是数字
+                    String indexStr = lines[0].trim().replace("\uFEFF", "");
+                    if (!indexStr.matches("\\d+")) {
+                        log.warn("跳过无效序号的字幕条目: {}", indexStr);
+                        continue;
+                    }
+
+                    int index = Integer.parseInt(indexStr);
                     String timeCode = lines[1].trim();
-                    
+
                     // 验证时间码格式
                     if (!TIME_CODE_PATTERN.matcher(timeCode).matches()) {
                         log.warn("跳过无效时间码的字幕条目: {}", index);
                         continue;
                     }
-                    
-                    // 合并剩余行作为字幕文本
+
+                    // 组合字幕文本
                     String text = String.join("\n", Arrays.copyOfRange(lines, 2, lines.length));
-                    
+
                     // 创建字幕条目，并检查是否需要修正
                     SubtitleEntry entry = new SubtitleEntry();
                     entry.setIndex(index);
                     entry.setTimeCode(timeCode);
                     entry.setText(text);
                     entry.setNeedsCorrection(needsCorrection(text));
-                    
+
                     entries.add(entry);
                 } catch (NumberFormatException e) {
-                    log.warn("跳过无效序号的字幕条目");
+                    log.warn("跳过无法解析的字幕条目: {}", lines[0], e);
                 }
+            } else {
+                log.warn("跳过格式不完整的字幕条目: {}", block);
             }
         }
-        
+
         log.info("解析到 {} 条字幕", entries.size());
         return entries;
     }
+
 
     public List<BatchCorrection> extractTextForCorrection(List<SubtitleEntry> entries) {
         List<BatchCorrection> batches = new ArrayList<>();

@@ -440,7 +440,7 @@
 
         for (let i = startIdx; i < Math.min(endIdx, originalSubtitles.length); i++) {
             const original = originalSubtitles[i];
-            const corrected = correctedSubtitles[i];
+            const corrected = correctedSubtitles.find(sub => sub.index === original.index) || { index: original.index, time: original.time, text: "[字幕缺失]" };
 
             originalContent.innerHTML += createSubtitleEntry(original);
             correctedContent.innerHTML += createSubtitleEntry(corrected, original);
