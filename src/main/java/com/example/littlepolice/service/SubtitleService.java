@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import lombok.Data;
 import lombok.AllArgsConstructor;
@@ -26,6 +27,7 @@ public class SubtitleService {
     private static final Pattern TIME_CODE_PATTERN = Pattern.compile("\\d{2}:\\d{2}:\\d{2},\\d{3}\\s*-->\\s*\\d{2}:\\d{2}:\\d{2},\\d{3}");
 
     private final TokenCalculator tokenCalculator;
+    private final DeepSeekService deepSeekService;
 
     @Data
     @AllArgsConstructor
@@ -75,60 +77,133 @@ public class SubtitleService {
 
     public List<BatchCorrection> extractTextForCorrection(List<SubtitleEntry> entries) {
         List<BatchCorrection> batches = new ArrayList<>();
+        
+        // 如果字幕条数小于20，使用单批处理
+        if (entries.size() < 20) {
+            return createSingleBatch(entries);
+        }
+        
+        // 字幕条数大于20，使用三批处理
+        return createTripleBatches(entries);
+    }
+    
+    private List<BatchCorrection> createSingleBatch(List<SubtitleEntry> entries) {
+        List<BatchCorrection> batches = new ArrayList<>();
         StringBuilder currentBatch = new StringBuilder();
         List<Integer> currentIndices = new ArrayList<>();
-        int currentSize = 0;
         int currentTokens = 0;
         
         for (int i = 0; i < entries.size(); i++) {
             SubtitleEntry entry = entries.get(i);
-            String text = entry.getText().trim();
-            
-            // 检查是否需要修正
             if (entry.isNeedsCorrection()) {
+                String text = entry.getText().trim();
                 int textTokens = tokenCalculator.calculateTokens(text);
                 
-                // 如果当前批次加上新文本会超过最大大小或token数，创建新批次
-                if ((currentSize + text.length() + 2 > maxBatchSize || 
+                // 如果当前批次加上新文本会超过最大字符数或token数，创建新批次
+                if ((currentBatch.length() + text.length() + 2 > maxBatchSize || 
                      currentTokens + textTokens > maxBatchTokens) && 
-                    currentSize > 0) {
-                    String batchText = currentBatch.toString();
-                    batches.add(new BatchCorrection(batchText, 
+                    currentBatch.length() > 0) {
+                    batches.add(new BatchCorrection(currentBatch.toString(), 
                                                   new ArrayList<>(currentIndices),
                                                   currentTokens));
                     currentBatch = new StringBuilder();
                     currentIndices = new ArrayList<>();
-                    currentSize = 0;
                     currentTokens = 0;
                 }
                 
                 // 添加到当前批次
-                if (currentSize > 0) {
+                if (currentBatch.length() > 0) {
                     currentBatch.append("\n---\n");
-                    currentSize += 2;
                 }
                 currentBatch.append(text);
                 currentIndices.add(i);
-                currentSize += text.length();
                 currentTokens += textTokens;
             }
         }
         
         // 添加最后一个批次
-        if (currentSize > 0) {
-            String batchText = currentBatch.toString();
-            int tokenCount = tokenCalculator.calculateTokens(batchText);
-            batches.add(new BatchCorrection(batchText, currentIndices, tokenCount));
+        if (currentBatch.length() > 0) {
+            batches.add(new BatchCorrection(currentBatch.toString(), 
+                                          currentIndices,
+                                          currentTokens));
         }
         
-        // 记录每个批次的token数量
-        int totalTokens = batches.stream().mapToInt(BatchCorrection::getTokenCount).sum();
-        log.info("将 {} 条需要修正的字幕分成 {} 批处理，共计 {} 个token", 
-                batches.stream().mapToInt(b -> b.getEntryIndices().size()).sum(),
-                batches.size(),
-                totalTokens);
+        return batches;
+    }
+    
+    private List<BatchCorrection> createTripleBatches(List<SubtitleEntry> entries) {
+        List<BatchCorrection> batches = new ArrayList<>();
+        List<SubtitleEntry> needsCorrectionEntries = new ArrayList<>();
         
-        // 详细记录每个批次的信息
+        // 收集需要修正的字幕
+        for (int i = 0; i < entries.size(); i++) {
+            SubtitleEntry entry = entries.get(i);
+            if (entry.isNeedsCorrection()) {
+                needsCorrectionEntries.add(entry);
+            }
+        }
+        
+        // 计算每个批次应该包含的字幕数量
+        int entriesPerBatch = needsCorrectionEntries.size() / 3;
+        int remainingEntries = needsCorrectionEntries.size() % 3;
+        
+        // 创建三个批次
+        int startIndex = 0;
+        for (int batchNum = 0; batchNum < 3; batchNum++) {
+            int batchSize = entriesPerBatch + (batchNum < remainingEntries ? 1 : 0);
+            if (batchSize == 0) continue;
+            
+            StringBuilder batchText = new StringBuilder();
+            List<Integer> batchIndices = new ArrayList<>();
+            int batchTokens = 0;
+            int processedEntries = 0;
+            
+            // 处理当前批次的字幕
+            while (startIndex < entries.size() && processedEntries < batchSize) {
+                SubtitleEntry entry = entries.get(startIndex);
+                if (entry.isNeedsCorrection()) {
+                    String text = entry.getText().trim();
+                    int textTokens = tokenCalculator.calculateTokens(text);
+                    
+                    // 检查是否超过最大字符数或token数
+                    if (batchText.length() + text.length() + 2 > maxBatchSize || 
+                        batchTokens + textTokens > maxBatchTokens) {
+                        // 如果当前批次已经有内容，保存当前批次并创建新批次
+                        if (batchText.length() > 0) {
+                            batches.add(new BatchCorrection(batchText.toString(), 
+                                                          new ArrayList<>(batchIndices),
+                                                          batchTokens));
+                            batchText = new StringBuilder();
+                            batchIndices = new ArrayList<>();
+                            batchTokens = 0;
+                        }
+                    }
+                    
+                    // 添加到当前批次
+                    if (batchText.length() > 0) {
+                        batchText.append("\n---\n");
+                    }
+                    batchText.append(text);
+                    batchIndices.add(startIndex);
+                    batchTokens += textTokens;
+                    processedEntries++;
+                }
+                startIndex++;
+            }
+            
+            // 保存最后一个批次
+            if (batchText.length() > 0) {
+                batches.add(new BatchCorrection(batchText.toString(), 
+                                              batchIndices,
+                                              batchTokens));
+            }
+        }
+        
+        // 记录批处理信息
+        log.info("将 {} 条需要修正的字幕分成 {} 批处理", 
+                needsCorrectionEntries.size(),
+                batches.size());
+        
         for (int i = 0; i < batches.size(); i++) {
             BatchCorrection batch = batches.get(i);
             log.info("第 {}/{} 批: {} 条字幕, {} 个token", 
@@ -187,5 +262,27 @@ public class SubtitleService {
         
         // 可以添加其他需要修正的模式
         return false;
+    }
+
+    public void processSubtitles(List<SubtitleEntry> entries) {
+        List<BatchCorrection> batches = extractTextForCorrection(entries);
+        
+        if (batches.isEmpty()) {
+            log.info("没有需要修正的字幕");
+            return;
+        }
+
+        // 收集所有批次的文本
+        List<String> batchTexts = batches.stream()
+            .map(BatchCorrection::getText)
+            .collect(Collectors.toList());
+
+        // 并行处理所有批次
+        List<String> correctedTexts = deepSeekService.correctTextsParallel(batchTexts);
+
+        // 更新字幕内容
+        for (int i = 0; i < batches.size(); i++) {
+            updateCorrectedText(entries, batches.get(i), correctedTexts.get(i));
+        }
     }
 } 

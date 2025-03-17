@@ -138,6 +138,9 @@
         .subtitle-entry.highlighted {
             background-color: #e3f2fd;
         }
+        .subtitle-entry.modified {
+            background-color: #ffebee;
+        }
         .subtitle-entry .time {
             color: #666;
             font-size: 0.9em;
@@ -147,9 +150,8 @@
             line-height: 1.4;
         }
         .diff {
-            background-color: #ffebee;
+            font-weight: bold;
             color: #c62828;
-            padding: 0 2px;
         }
         .pagination {
             display: flex;
@@ -518,6 +520,41 @@
             if (type) {
                 status.classList.add('status-' + type);
             }
+        }
+
+        function displaySubtitles(page) {
+            const start = (page - 1) * ITEMS_PER_PAGE;
+            const end = start + ITEMS_PER_PAGE;
+            
+            originalContent.innerHTML = '';
+            correctedContent.innerHTML = '';
+            
+            for (let i = start; i < Math.min(end, originalSubtitles.length); i++) {
+                const originalEntry = document.createElement('div');
+                originalEntry.className = 'subtitle-entry';
+                originalEntry.innerHTML = `
+                    <div class="time">${originalSubtitles[i].id}</div>
+                    <div class="time">${originalSubtitles[i].time}</div>
+                    <div class="text">${originalSubtitles[i].text}</div>
+                `;
+                
+                const correctedEntry = document.createElement('div');
+                const hasModification = correctedSubtitles[i].text !== originalSubtitles[i].text;
+                correctedEntry.className = `subtitle-entry${hasModification ? ' modified' : ''}`;
+                correctedEntry.innerHTML = `
+                    <div class="time">${correctedSubtitles[i].id}</div>
+                    <div class="time">${correctedSubtitles[i].time}</div>
+                    <div class="text">${correctedSubtitles[i].text.replace(/[的得地]/g, match => 
+                        originalSubtitles[i].text.includes(match) && 
+                        correctedSubtitles[i].text.indexOf(match) === originalSubtitles[i].text.indexOf(match) ? 
+                        match : `<span class="diff">${match}</span>`)}</div>
+                `;
+                
+                originalContent.appendChild(originalEntry);
+                correctedContent.appendChild(correctedEntry);
+            }
+            
+            updatePaginationControls();
         }
     </script>
 </body>

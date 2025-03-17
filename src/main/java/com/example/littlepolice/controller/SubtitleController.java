@@ -77,61 +77,23 @@ public class SubtitleController {
             
             // 分批处理文本
             log.info("开始分批处理文本，共 {} 批", batches.size());
-            for (int i = 0; i < batches.size(); i++) {
-                BatchCorrection batch = batches.get(i);
-                log.info("处理第 {}/{} 批，包含 {} 条字幕，{} 个token", 
-                    i + 1, batches.size(), 
-                    batch.getEntryIndices().size(),
-                    batch.getTokenCount());
+            
+            // 收集所有批次的文本
+            List<String> batchTexts = batches.stream()
+                .map(BatchCorrection::getText)
+                .collect(java.util.stream.Collectors.toList());
+            
+            // 并行处理所有批次
+            try {
+                List<String> correctedTexts = deepSeekService.correctTextsParallel(batchTexts);
                 
-                // 添加重试机制
-                int maxRetries = 3;
-                int retryCount = 0;
-                long retryDelay = 2000; // 初始重试延迟2秒
-                
-                while (retryCount < maxRetries) {
-                    try {
-                        // 调用 DeepSeek API 修正文本
-                        long startTime = System.currentTimeMillis();
-                        String correctedText = deepSeekService.correctText(batch.getText());
-                        long endTime = System.currentTimeMillis();
-                        log.info("第 {}/{} 批API调用耗时: {}ms", i + 1, batches.size(), endTime - startTime);
-                        
-                        // 更新修正后的文本
-                        subtitleService.updateCorrectedText(entries, batch, correctedText);
-                        
-                        // 成功处理，跳出重试循环
-                        break;
-                        
-                    } catch (Exception e) {
-                        retryCount++;
-                        if (retryCount >= maxRetries) {
-                            log.error("处理第 {}/{} 批失败，已重试 {} 次", i + 1, batches.size(), retryCount, e);
-                            throw new RuntimeException("处理失败，已重试" + retryCount + "次: " + e.getMessage());
-                        }
-                        
-                        log.warn("处理第 {}/{} 批时发生错误，准备第 {} 次重试，等待 {}ms", 
-                            i + 1, batches.size(), retryCount + 1, retryDelay, e);
-                        
-                        try {
-                            Thread.sleep(retryDelay);
-                            retryDelay *= 2; // 指数退避
-                        } catch (InterruptedException ie) {
-                            Thread.currentThread().interrupt();
-                            throw new RuntimeException("重试等待被中断", ie);
-                        }
-                    }
+                // 更新所有批次的修正文本
+                for (int i = 0; i < batches.size(); i++) {
+                    subtitleService.updateCorrectedText(entries, batches.get(i), correctedTexts.get(i));
                 }
-                
-                // 批次间等待时间
-                if (i < batches.size() - 1) {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("批次间等待被中断", e);
-                    }
-                }
+            } catch (Exception e) {
+                log.error("并行处理批次时发生错误", e);
+                throw new RuntimeException("并行处理失败: " + e.getMessage());
             }
             
             // 生成新的 SRT 内容
