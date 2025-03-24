@@ -14,6 +14,7 @@ import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -23,11 +24,14 @@ public class SubtitleService {
     
     @Value("${subtitle.batch.max-tokens:2000}")
     private int maxBatchTokens; // 每批最大token数，可通过配置文件调整
-    
+
+    //定义全局变量最大批次值
+    private static final int MAX_BATCH_SIZE = 20;
+
     private static final Pattern TIME_CODE_PATTERN = Pattern.compile("\\d{2}:\\d{2}:\\d{2},\\d{3}\\s*-->\\s*\\d{2}:\\d{2}:\\d{2},\\d{3}");
 
     private final TokenCalculator tokenCalculator;
-    private final DeepSeekService deepSeekService;
+    private final SiliconFlowService siliconFlowService;
 
     @Data
     @AllArgsConstructor
@@ -157,12 +161,12 @@ public class SubtitleService {
         }
         
         // 计算每个批次应该包含的字幕数量
-        int entriesPerBatch = needsCorrectionEntries.size() / 3;
-        int remainingEntries = needsCorrectionEntries.size() % 3;
+        int entriesPerBatch = needsCorrectionEntries.size() / MAX_BATCH_SIZE;
+        int remainingEntries = needsCorrectionEntries.size() % MAX_BATCH_SIZE;
         
         // 创建三个批次
         int startIndex = 0;
-        for (int batchNum = 0; batchNum < 3; batchNum++) {
+        for (int batchNum = 0; batchNum < MAX_BATCH_SIZE; batchNum++) {
             int batchSize = entriesPerBatch + (batchNum < remainingEntries ? 1 : 0);
             if (batchSize == 0) continue;
             
@@ -291,7 +295,7 @@ public class SubtitleService {
             .collect(Collectors.toList());
 
         // 并行处理所有批次
-        List<String> correctedTexts = deepSeekService.correctTextsParallel(batchTexts);
+        List<String> correctedTexts = siliconFlowService.correctTextsParallel(batchTexts);
 
         // 更新字幕内容
         for (int i = 0; i < batches.size(); i++) {

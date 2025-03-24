@@ -1,7 +1,7 @@
 package com.example.littlepolice.controller;
 
 import com.example.littlepolice.model.SubtitleEntry;
-import com.example.littlepolice.service.DeepSeekService;
+import com.example.littlepolice.service.SiliconFlowService;
 import com.example.littlepolice.service.SubtitleService;
 import com.example.littlepolice.service.SubtitleService.BatchCorrection;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +34,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SubtitleController {
     private final SubtitleService subtitleService;
-    private final DeepSeekService deepSeekService;
+    private final SiliconFlowService deepSeekService;
 
     @Value("${temp.file.path:${java.io.tmpdir}/subtitles}")
     private String tempFilePath;

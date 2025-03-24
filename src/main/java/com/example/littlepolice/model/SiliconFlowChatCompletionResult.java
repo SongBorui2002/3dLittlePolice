@@ -1,15 +1,13 @@
 package com.example.littlepolice.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.theokanning.openai.completion.chat.ChatMessage;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import java.util.List;
-import java.util.Map;
 
 @Data
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class DeepSeekChatCompletionResult {
+@JsonIgnoreProperties(ignoreUnknown = true)  // 这个注解已经存在，但确保它在类上
+public class SiliconFlowChatCompletionResult {
     private String id;
     private String object;
     private Long created;
@@ -17,14 +15,23 @@ public class DeepSeekChatCompletionResult {
     private List<Choice> choices;
     private Usage usage;
 
+    @JsonProperty("system_fingerprint")  // 添加这个字段
+    private String systemFingerprint;    // 添加这个字段
+
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Choice {
         private Integer index;
-        private ChatMessage message;
+        private Message message;
         @JsonProperty("finish_reason")
         private String finishReason;
-        private Object logprobs;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Message {
+        private String role;
+        private String content;
     }
 
     @Data
@@ -36,7 +43,5 @@ public class DeepSeekChatCompletionResult {
         private Integer completionTokens;
         @JsonProperty("total_tokens")
         private Integer totalTokens;
-        @JsonProperty("prompt_tokens_details")
-        private Map<String, Object> promptTokensDetails;
     }
-} 
+}
