@@ -224,11 +224,11 @@
                 <div id="correctedContent"></div>
             </div>
         </div>
-        <div class="pagination" id="pagination">
-            <button id="prevPage">上一页</button>
-            <span class="pagination-info">第 <span id="currentPage">1</span> 页，共 <span id="totalPages">1</span> 页</span>
-            <button id="nextPage">下一页</button>
-        </div>
+<!--        <div class="pagination" id="pagination">-->
+<!--            <button id="prevPage">上一页</button>-->
+<!--            <span class="pagination-info">第 <span id="currentPage">1</span> 页，共 <span id="totalPages">1</span> 页</span>-->
+<!--            <button id="nextPage">下一页</button>-->
+<!--        </div>-->
     </div>
 </div>
 
@@ -244,18 +244,20 @@
     const selectedFile = document.getElementById('selectedFile');
     const comparisonContainer = document.getElementById('comparisonContainer');
     const originalContent = document.getElementById('originalContent');
-    const correctedContent = document.getElementById('correctedContent');
-    const prevPageBtn = document.getElementById('prevPage');
-    const nextPageBtn = document.getElementById('nextPage');
-    const currentPageSpan = document.getElementById('currentPage');
-    const totalPagesSpan = document.getElementById('totalPages');
+    // const correctedContent = document.getElementById('correctedContent');
+    const correctedContentDiv = document.getElementById('correctedContent');
+    // const prevPageBtn = document.getElementById('prevPage');
+    // const nextPageBtn = document.getElementById('nextPage');
+    // const currentPageSpan = document.getElementById('currentPage');
+    // const totalPagesSpan = document.getElementById('totalPages');
 
     let correctedFileUrl = null;
     let selectedSrtFile = null;
     let originalSubtitles = [];
     let correctedSubtitles = [];
-    let currentPage = 1;
-    const ITEMS_PER_PAGE = 100;
+    let correctedContent = '';
+    // let currentPage = 1;
+    // const ITEMS_PER_PAGE = 100;
 
     // 拖放处理
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -308,6 +310,107 @@
         showStatus('', '');
     }
 
+    // function processFile() {
+    //     if (!selectedSrtFile) {
+    //         showStatus('请先选择字幕文件', 'error');
+    //         return;
+    //     }
+    //
+    //     const formData = new FormData();
+    //     formData.append('file', selectedSrtFile);
+    //
+    //     showStatus('正在处理字幕文件，请稍候...', 'processing');
+    //     progressContainer.style.display = 'block';
+    //     startButton.disabled = true;
+    //     downloadArea.style.display = 'none';
+    //
+    //     // 读取原始字幕文件
+    //     const reader = new FileReader();
+    //     reader.onload = function(e) {
+    //         originalSubtitles = parseSrt(e.target.result);
+    //
+    //         // 模拟进度条
+    //         let progress = 0;
+    //         const progressInterval = setInterval(() => {
+    //             if (progress < 90) {
+    //                 progress += Math.random() * 10;
+    //                 progressBar.style.width = Math.min(progress, 90) + '%';
+    //             }
+    //         }, 500);
+    //
+    //         fetch('/correct', {
+    //             method: 'POST',
+    //             body: formData
+    //         })
+    //             .then(response => {
+    //                 clearInterval(progressInterval);
+    //                 progressBar.style.width = '100%';
+    //
+    //                 if (!response.ok) {
+    //                     return response.text().then(text => {
+    //                         throw new Error(text || '处理文件时发生错误');
+    //                     });
+    //                 }
+    //
+    //                 const disposition = response.headers.get('Content-Disposition');
+    //                 const filenameMatch = disposition && disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    //                 const filename = filenameMatch && filenameMatch[1].replace(/['"]/g, '');
+    //
+    //                 return response.blob().then(blob => ({
+    //                     blob: blob,
+    //                     filename: filename || 'corrected.srt'
+    //                 }));
+    //             })
+    //             .then(({blob, filename}) => {
+    //                 correctedFileUrl = URL.createObjectURL(blob);
+    //                 downloadBtn.onclick = () => {
+    //                     // const a = document.createElement('a');
+    //                     // a.href = correctedFileUrl;
+    //                     // a.download = filename;
+    //                     // document.body.appendChild(a);
+    //                     // a.click();
+    //                     // document.body.removeChild(a);
+    //                     // 创建 Blob 对象
+    //                     const blob = new Blob([correctedSubtitles], { type: 'text/plain;charset=utf-8' });
+    //
+    //                     // 创建下载链接
+    //                     const url = window.URL.createObjectURL(blob);
+    //                     const a = document.createElement('a');
+    //                     a.href = url;
+    //                     a.download = selectedSrtFile.name; // 使用原始文件名
+    //
+    //                     // 触发下载
+    //                     document.body.appendChild(a);
+    //                     a.click();
+    //
+    //                     // 清理
+    //                     document.body.removeChild(a);
+    //                     window.URL.revokeObjectURL(url);
+    //                 };
+    //
+    //                 // 读取修正后的字幕文件
+    //                 const reader = new FileReader();
+    //                 reader.onload = function(e) {
+    //                     correctedSubtitles = parseSrt(e.target.result);
+    //                     showComparison();
+    //                 };
+    //                 reader.readAsText(blob);
+    //
+    //                 showStatus('字幕文件处理完成！', 'success');
+    //                 downloadArea.style.display = 'block';
+    //                 startButton.disabled = false;
+    //             })
+    //             .catch(error => {
+    //                 clearInterval(progressInterval);
+    //                 progressBar.style.width = '0%';
+    //                 progressContainer.style.display = 'none';
+    //                 showStatus(error.message || '处理文件时发生错误', 'error');
+    //                 startButton.disabled = false;
+    //             });
+    //     };
+    //     reader.readAsText(selectedSrtFile);
+    // }
+
     function processFile() {
         if (!selectedSrtFile) {
             showStatus('请先选择字幕文件', 'error');
@@ -322,75 +425,63 @@
         startButton.disabled = true;
         downloadArea.style.display = 'none';
 
-        // 读取原始字幕文件
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            originalSubtitles = parseSrt(e.target.result);
+        //随机假进度
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            if (progress < 90) {
+                progress += Math.random() * 10;
+                progressBar.style.width = Math.min(progress, 90) + '%';
+            }
+        }, 500);
 
-            // 模拟进度条
-            let progress = 0;
-            const progressInterval = setInterval(() => {
-                if (progress < 90) {
-                    progress += Math.random() * 10;
-                    progressBar.style.width = Math.min(progress, 90) + '%';
+        fetch('/correct', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => {
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(text || '处理文件时发生错误');
+                    });
                 }
-            }, 500);
-
-            fetch('/correct', {
-                method: 'POST',
-                body: formData
+                return response.json();
             })
-                .then(response => {
-                    clearInterval(progressInterval);
-                    progressBar.style.width = '100%';
+            .then(data => {
+                // 保存原始和修正后的内容
+                originalSubtitles = parseSrt(data.original);
+                correctedSubtitles = parseSrt(data.corrected);
+                correctedContent = data.corrected; // 保存完整的修正后内容
 
-                    if (!response.ok) {
-                        return response.text().then(text => {
-                            throw new Error(text || '处理文件时发生错误');
-                        });
-                    }
+                // 显示对比
+                showComparison();
 
-                    const disposition = response.headers.get('Content-Disposition');
-                    const filenameMatch = disposition && disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                    const filename = filenameMatch && filenameMatch[1].replace(/['"]/g, '');
+                // 设置下载按钮点击事件
+                downloadBtn.onclick = () => {
+                    const blob = new Blob([correctedContent], { type: 'text/plain;charset=utf-8' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = selectedSrtFile.name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                };
 
-                    return response.blob().then(blob => ({
-                        blob: blob,
-                        filename: filename || 'corrected.srt'
-                    }));
-                })
-                .then(({blob, filename}) => {
-                    correctedFileUrl = URL.createObjectURL(blob);
-                    downloadBtn.onclick = () => {
-                        const a = document.createElement('a');
-                        a.href = correctedFileUrl;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                    };
-
-                    // 读取修正后的字幕文件
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        correctedSubtitles = parseSrt(e.target.result);
-                        showComparison();
-                    };
-                    reader.readAsText(blob);
-
-                    showStatus('字幕文件处理完成！', 'success');
-                    downloadArea.style.display = 'block';
-                    startButton.disabled = false;
-                })
-                .catch(error => {
-                    clearInterval(progressInterval);
-                    progressBar.style.width = '0%';
-                    progressContainer.style.display = 'none';
-                    showStatus(error.message || '处理文件时发生错误', 'error');
-                    startButton.disabled = false;
-                });
-        };
-        reader.readAsText(selectedSrtFile);
+                showStatus('字幕文件处理完成！', 'success');
+                downloadArea.style.display = 'block';
+                startButton.disabled = false;
+            })
+            .catch(error => {
+                clearInterval(progressInterval);
+                progressBar.style.width = '0%';
+                progressContainer.style.display = 'none';
+                showStatus(error.message || '处理文件时发生错误', 'error');
+                startButton.disabled = false;
+            });
     }
 
     function parseSrt(content) {
@@ -412,8 +503,23 @@
 
     function showComparison() {
         comparisonContainer.style.display = 'block';
-        updatePagination();
-        showCurrentPage();
+        originalContent.innerHTML = '';
+        // correctedContent.innerHTML = '';
+        correctedContentDiv.innerHTML = '';
+
+        // for (const original of originalSubtitles) {
+        //     const corrected = correctedSubtitles.find(sub => sub.index === original.index) || { index: original.index, time: original.time, text: "[字幕缺失]" };
+        //
+        //     originalContent.innerHTML += createSubtitleEntry(original);
+        //     correctedContent.innerHTML += createSubtitleEntry(corrected, original);
+        // }
+        for (const original of originalSubtitles) {
+            const corrected = correctedSubtitles.find(sub => sub.index === original.index) ||
+                { index: original.index, time: original.time, text: "[字幕缺失]" };
+
+            originalContent.innerHTML += createSubtitleEntry(original);
+            correctedContentDiv.innerHTML += createSubtitleEntry(corrected, original); // 这里也改为 correctedContentDiv
+        }
         setupSyncScroll();
     }
 
@@ -431,24 +537,24 @@
         };
     }
 
-    function showCurrentPage() {
-        const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIdx = startIdx + ITEMS_PER_PAGE;
-
-        originalContent.innerHTML = '';
-        correctedContent.innerHTML = '';
-
-        for (let i = startIdx; i < Math.min(endIdx, originalSubtitles.length); i++) {
-            const original = originalSubtitles[i];
-            const corrected = correctedSubtitles.find(sub => sub.index === original.index) || { index: original.index, time: original.time, text: "[字幕缺失]" };
-
-            originalContent.innerHTML += createSubtitleEntry(original);
-            correctedContent.innerHTML += createSubtitleEntry(corrected, original);
-        }
-
-        currentPageSpan.textContent = currentPage;
-        updatePageButtons();
-    }
+    // function showCurrentPage() {
+    //     const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
+    //     const endIdx = startIdx + ITEMS_PER_PAGE;
+    //
+    //     originalContent.innerHTML = '';
+    //     correctedContent.innerHTML = '';
+    //
+    //     for (let i = startIdx; i < Math.min(endIdx, originalSubtitles.length); i++) {
+    //         const original = originalSubtitles[i];
+    //         const corrected = correctedSubtitles.find(sub => sub.index === original.index) || { index: original.index, time: original.time, text: "[字幕缺失]" };
+    //
+    //         originalContent.innerHTML += createSubtitleEntry(original);
+    //         correctedContent.innerHTML += createSubtitleEntry(corrected, original);
+    //     }
+    //
+    //     currentPageSpan.textContent = currentPage;
+    //     updatePageButtons();
+    // }
 
     function createSubtitleEntry(subtitle, original = null) {
         let className = "subtitle-entry";
@@ -472,32 +578,32 @@
     `;
     }
 
-    function updatePagination() {
-        const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
-        totalPagesSpan.textContent = totalPages;
-        updatePageButtons();
-    }
-
-    function updatePageButtons() {
-        const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
-        prevPageBtn.disabled = currentPage === 1;
-        nextPageBtn.disabled = currentPage === totalPages;
-    }
-
-    prevPageBtn.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            showCurrentPage();
-        }
-    });
-
-    nextPageBtn.addEventListener('click', () => {
-        const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
-        if (currentPage < totalPages) {
-            currentPage++;
-            showCurrentPage();
-        }
-    });
+    // function updatePagination() {
+    //     const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
+    //     totalPagesSpan.textContent = totalPages;
+    //     updatePageButtons();
+    // }
+    //
+    // function updatePageButtons() {
+    //     const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
+    //     prevPageBtn.disabled = currentPage === 1;
+    //     nextPageBtn.disabled = currentPage === totalPages;
+    // }
+    //
+    // prevPageBtn.addEventListener('click', () => {
+    //     if (currentPage > 1) {
+    //         currentPage--;
+    //         showCurrentPage();
+    //     }
+    // });
+    //
+    // nextPageBtn.addEventListener('click', () => {
+    //     const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
+    //     if (currentPage < totalPages) {
+    //         currentPage++;
+    //         showCurrentPage();
+    //     }
+    // });
 
     function showStatus(message, type) {
         status.textContent = message;

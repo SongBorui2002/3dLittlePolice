@@ -4,6 +4,8 @@ import com.example.littlepolice.model.SubtitleEntry;
 import com.example.littlepolice.service.SiliconFlowService;
 import com.example.littlepolice.service.SubtitleService;
 import com.example.littlepolice.service.SubtitleService.BatchCorrection;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,10 +36,29 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SubtitleController {
     private final SubtitleService subtitleService;
-    private final SiliconFlowService deepSeekService;
+    private final SiliconFlowService siliconflowService;
 
-    @Value("${temp.file.path:${java.io.tmpdir}/subtitles}")
-    private String tempFilePath;
+    // 用于返回原始和修正后内容的响应类
+    @Data
+    public static class SubtitleResponse {
+        @JsonProperty("original")
+        private String originalContent;
+        @JsonProperty("corrected")
+        private String correctedContent;
+
+        public SubtitleResponse setOriginalContent(String content) {
+            this.originalContent = content;
+            return this;
+        }
+
+        public SubtitleResponse setCorrectedContent(String content) {
+            this.correctedContent = content;
+            return this;
+        }
+    }
+
+//    @Value("${temp.file.path:${java.io.tmpdir}/subtitles}")
+//    private String tempFilePath;
 
     @GetMapping("/")
     public String index() {
@@ -49,12 +70,12 @@ public class SubtitleController {
         try {
             log.info("开始处理字幕文件: {}, 大小: {} bytes", file.getOriginalFilename(), file.getSize());
             
-            // 确保临时目录存在
-            Path tempDir = Paths.get(tempFilePath);
-            if (!Files.exists(tempDir)) {
-                Files.createDirectories(tempDir);
-                log.info("创建临时目录: {}", tempDir);
-            }
+//            // 确保临时目录存在
+//            Path tempDir = Paths.get(tempFilePath);
+//            if (!Files.exists(tempDir)) {
+//                Files.createDirectories(tempDir);
+//                log.info("创建临时目录: {}", tempDir);
+//            }
 
             // 读取文件内容（使用UTF-8编码）
             log.info("读取文件内容...");
@@ -72,7 +93,10 @@ public class SubtitleController {
             
             if (batches.isEmpty()) {
                 log.info("没有需要修正的文本，返回原文件");
-                return saveAndReturnFile(content, file.getOriginalFilename());
+//                return saveAndReturnFile(content, file.getOriginalFilename());
+                return ResponseEntity.ok(new SubtitleResponse()
+                        .setOriginalContent(content)
+                        .setCorrectedContent(content));
             }
             
             // 分批处理文本
@@ -85,7 +109,7 @@ public class SubtitleController {
             
             // 并行处理所有批次
             try {
-                List<String> correctedTexts = deepSeekService.correctTextsParallel(batchTexts);
+                List<String> correctedTexts = siliconflowService.correctTextsParallel(batchTexts);
                 
                 // 更新所有批次的修正文本
                 for (int i = 0; i < batches.size(); i++) {
@@ -102,7 +126,12 @@ public class SubtitleController {
 
             // 保存并返回文件
             log.info("保存并返回修正后的文件...");
-            return saveAndReturnFile(newContent, file.getOriginalFilename());
+//            return saveAndReturnFile(newContent, file.getOriginalFilename());
+            SubtitleResponse response = new SubtitleResponse()
+                    .setOriginalContent(content)
+                    .setCorrectedContent(newContent);
+
+            return ResponseEntity.ok(response);
             
         } catch (Exception e) {
             log.error("处理字幕文件时发生错误", e);
@@ -111,52 +140,52 @@ public class SubtitleController {
         }
     }
     
-    private ResponseEntity<Resource> saveAndReturnFile(String content, String originalFilename) throws IOException {
-        // 生成唯一的文件名
-        String uniqueFilename = UUID.randomUUID().toString() + "_" + originalFilename;
-        Path filePath = Paths.get(tempFilePath, uniqueFilename);
-        
-        log.info("保存临时文件: {}", filePath);
-        
-        // 使用UTF-8编码写入文件
-        Files.write(filePath, content.getBytes(StandardCharsets.UTF_8));
-        
-        // 创建文件资源
-        Resource resource;
-        try {
-            resource = new UrlResource(filePath.toUri());
-            log.info("创建文件资源成功: {}", resource.getURI());
-        } catch (MalformedURLException e) {
-            log.error("无法创建文件资源", e);
-            throw new IOException("无法创建文件资源", e);
-        }
-        
-        // 设置响应头
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        
-        // 对文件名进行 URL 编码，并添加双引号
-        String encodedFilename = URLEncoder.encode(originalFilename, StandardCharsets.UTF_8.name())
-            .replace("+", "%20");
-        headers.add(HttpHeaders.CONTENT_DISPOSITION, 
-            "attachment; filename=\"" + encodedFilename + "\"; filename*=UTF-8''" + encodedFilename);
-        
-        log.info("设置响应头 Content-Disposition: {}", headers.getFirst(HttpHeaders.CONTENT_DISPOSITION));
-        
-        // 启动定时任务，在一定时间后删除临时文件（例如30分钟）
-        new Thread(() -> {
-            try {
-                Thread.sleep(30 * 60 * 1000); // 30分钟
-                if (Files.deleteIfExists(filePath)) {
-                    log.info("成功删除临时文件: {}", filePath);
-                }
-            } catch (Exception e) {
-                log.error("删除临时文件失败: {}", filePath, e);
-            }
-        }).start();
-        
-        return ResponseEntity.ok()
-            .headers(headers)
-            .body(resource);
-    }
+//    private ResponseEntity<Resource> saveAndReturnFile(String content, String originalFilename) throws IOException {
+//        // 生成唯一的文件名
+//        String uniqueFilename = UUID.randomUUID().toString() + "_" + originalFilename;
+//        Path filePath = Paths.get(tempFilePath, uniqueFilename);
+//
+//        log.info("保存临时文件: {}", filePath);
+//
+//        // 使用UTF-8编码写入文件
+//        Files.write(filePath, content.getBytes(StandardCharsets.UTF_8));
+//
+//        // 创建文件资源
+//        Resource resource;
+//        try {
+//            resource = new UrlResource(filePath.toUri());
+//            log.info("创建文件资源成功: {}", resource.getURI());
+//        } catch (MalformedURLException e) {
+//            log.error("无法创建文件资源", e);
+//            throw new IOException("无法创建文件资源", e);
+//        }
+//
+//        // 设置响应头
+//        HttpHeaders headers = new HttpHeaders();
+//        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+//
+//        // 对文件名进行 URL 编码，并添加双引号
+//        String encodedFilename = URLEncoder.encode(originalFilename, StandardCharsets.UTF_8.name())
+//            .replace("+", "%20");
+//        headers.add(HttpHeaders.CONTENT_DISPOSITION,
+//            "attachment; filename=\"" + encodedFilename + "\"; filename*=UTF-8''" + encodedFilename);
+//
+//        log.info("设置响应头 Content-Disposition: {}", headers.getFirst(HttpHeaders.CONTENT_DISPOSITION));
+//
+//        // 启动定时任务，在一定时间后删除临时文件（例如30分钟）
+//        new Thread(() -> {
+//            try {
+//                Thread.sleep(30 * 60 * 1000); // 30分钟
+//                if (Files.deleteIfExists(filePath)) {
+//                    log.info("成功删除临时文件: {}", filePath);
+//                }
+//            } catch (Exception e) {
+//                log.error("删除临时文件失败: {}", filePath, e);
+//            }
+//        }).start();
+//
+//        return ResponseEntity.ok()
+//            .headers(headers)
+//            .body(resource);
+//    }
 } 
