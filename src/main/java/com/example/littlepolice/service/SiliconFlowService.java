@@ -93,7 +93,7 @@ public class SiliconFlowService implements DisposableBean {
             List<SiliconFlowRequest.Message> messages = Arrays.asList(
                     SiliconFlowRequest.Message.builder()
                             .role("system")
-                            .content("你是一个中文语法检查助手，专门负责修正文本中的'的得地'用法。请只返回修改后的文本，不需要解释。请注意只修改“的得地”的错误用法，无需修正其他文字错误")
+                            .content("你是一个中文语法检查助手，专门负责修正文本中的'的得地'用法。请只返回修改后的文本，不需要解释。请注意只修改“的得地”的错误用法，无需修正其他文字错误。可以适当结合每句话前一句与后一句的上下文，正确使用中文的“的得地”。")
                             .build(),
                     SiliconFlowRequest.Message.builder()
                             .role("user")
@@ -106,8 +106,8 @@ public class SiliconFlowService implements DisposableBean {
                     .messages(messages)
                     .stream(false)
                     .maxTokens(4096)
-                    .temperature(0.5)
-                    .topP(0.5)
+                    .temperature(0.3)
+                    .topP(0.3)
                     .topK(50)
                     .frequencyPenalty(0.5)
                     .n(1)
@@ -124,6 +124,10 @@ public class SiliconFlowService implements DisposableBean {
             String correctedText = result.getChoices().get(0).getMessage().getContent();
             long endTime = System.currentTimeMillis();
             log.info("API请求完成，耗时: {}ms", endTime - startTime);
+
+//            // 添加响应内容的日志
+//            log.info("API响应内容长度: {}", correctedText.length());
+//            log.info("API响应内容是否包含分隔符: {}", correctedText.contains("\n---\n"));
 
             return correctedText;
         } catch (Exception e) {
