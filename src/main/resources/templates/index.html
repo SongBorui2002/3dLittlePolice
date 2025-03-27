@@ -458,9 +458,14 @@
                 // 显示对比
                 showComparison();
 
-                // 设置下载按钮点击事件
+                // 修改下载按钮的处理函数，确保使用最新的修改内容
                 downloadBtn.onclick = () => {
-                    const blob = new Blob([correctedContent], { type: 'text/plain;charset=utf-8' });
+                    // 生成新的SRT内容
+                    const content = correctedSubtitles.map(subtitle =>
+                        `${subtitle.index}\n${subtitle.time}\n${subtitle.text}\n`
+                    ).join('\n');
+
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -568,8 +573,24 @@
                 className += " modified";
                 textClass = "modified";
             }
+
+            // 修正后的字幕 - 可编辑版本
+            return `
+        <div class="${className}">
+            <div class="time">
+                ${subtitle.index} | <span contenteditable="true"
+                onblur="updateSubtitleTime(${subtitle.index}, this.textContent)"
+                style="display: inline-block; min-width: 10px;"
+                >${subtitle.time}</span>
+            </div>
+            <div class="text ${textClass}" contenteditable="true"
+                onblur="updateSubtitleText(${subtitle.index}, this.textContent)"
+            >${subtitle.text}</div>
+        </div>
+        `;
         }
 
+        // 原始字幕 - 保持不变
         return `
         <div class="${className}">
             <div class="time">${subtitle.index} | ${subtitle.time}</div>
@@ -577,6 +598,22 @@
         </div>
     `;
     }
+
+    // 添加更新函数
+    function updateSubtitleTime(index, newTime) {
+        const subtitle = correctedSubtitles.find(s => s.index === index);
+        if (subtitle) {
+            subtitle.time = newTime;
+        }
+    }
+
+    function updateSubtitleText(index, newText) {
+        const subtitle = correctedSubtitles.find(s => s.index === index);
+        if (subtitle) {
+            subtitle.text = newText;
+        }
+    }
+
 
     // function updatePagination() {
     //     const totalPages = Math.ceil(originalSubtitles.length / ITEMS_PER_PAGE);
