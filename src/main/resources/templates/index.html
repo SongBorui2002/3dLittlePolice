@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>的得地小警察</title>
     <style>
-        /* 原有样式保持不变 */
         body {
             font-family: 'Microsoft YaHei', sans-serif;
             max-width: 1200px;
@@ -108,8 +107,6 @@
             border-radius: 4px;
             transition: width 0.3s ease-in-out;
         }
-
-        /* 新增和修改的样式 */
         .comparison-container {
             display: none;
             margin-top: 20px;
@@ -163,6 +160,7 @@
             right: 20px;
             white-space: nowrap;
             display: none;
+            z-index: 1000;
         }
         .marker:hover .marker-tooltip {
             display: block;
@@ -178,6 +176,10 @@
             background-color: #ffebee;
             border-left: 3px solid #ef5350;
         }
+        .subtitle-entry.highlighted {
+            background-color: #fff3cd;
+            transition: background-color 0.3s;
+        }
         .subtitle-entry .time {
             color: #666;
             font-size: 0.9em;
@@ -191,8 +193,6 @@
         .text.modified {
             background-color: #ffebee;
         }
-
-        /* 自定义滚动条样式 */
         .subtitle-column::-webkit-scrollbar {
             width: 16px;
         }
@@ -207,17 +207,9 @@
         .subtitle-column::-webkit-scrollbar-thumb:hover {
             background: #666;
         }
-        .virtual-scroll-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            pointer-events: none; /* 防止干扰滚动 */
-        }
-
-        .virtual-scroll-content {
-            position: relative;
-            pointer-events: auto; /* 恢复内容的事件响应 */
+        .button-container {
+            display: flex;
+            justify-content: center;
         }
     </style>
 </head>
@@ -230,7 +222,9 @@
         <button class="btn" onclick="document.getElementById('fileInput').click()">选择文件</button>
         <div class="selected-file" id="selectedFile"></div>
     </div>
-    <button class="btn" id="startButton">开始修改</button>
+    <div class="button-container">
+        <button class="btn" id="startButton">开始修改</button>
+    </div>
     <div class="progress-container" id="progressContainer">
         <div class="progress-bar" id="progressBar"></div>
     </div>
@@ -255,7 +249,6 @@
         </div>
     </div>
 </div>
-
 <script>
     const dropArea = document.getElementById('dropArea');
     const fileInput = document.getElementById('fileInput');
@@ -277,8 +270,21 @@
     let correctedSubtitles = [];
     let correctedContent = '';
     let modifiedEntries = [];
+    let subtitlePositions = new Map();
+    let isScrolling = false;
 
-    // 拖放处理
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropArea.addEventListener(eventName, preventDefaults, false);
     });
@@ -372,7 +378,6 @@
                 correctedContent = data.corrected;
 
                 showComparison();
-                createMarkers();
 
                 downloadBtn.onclick = () => {
                     const content = correctedSubtitles.map(subtitle =>
@@ -383,7 +388,7 @@
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = selectedSrtFile.name;
+                    a.download = selectedSrtFile.name.replace('.srt', '_corrected.srt');
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -425,6 +430,10 @@
         originalContent.innerHTML = '';
         correctedContentDiv.innerHTML = '';
         modifiedEntries = [];
+        subtitlePositions.clear();
+
+        const originalFragment = document.createDocumentFragment();
+        const correctedFragment = document.createDocumentFragment();
 
         for (const original of originalSubtitles) {
             const corrected = correctedSubtitles.find(sub => sub.index === original.index) ||
@@ -439,153 +448,108 @@
                 });
             }
 
-            originalContent.innerHTML += createSubtitleEntry(original);
-            correctedContentDiv.innerHTML += createSubtitleEntry(corrected, original);
+            originalFragment.appendChild(createSubtitleEntryElement(original));
+            correctedFragment.appendChild(createSubtitleEntryElement(corrected, original));
         }
-        setupSyncScroll();
+
+        originalContent.appendChild(originalFragment);
+        correctedContentDiv.appendChild(correctedFragment);
+
+        // 等待 DOM 更新完成后再计算位置和创建标记
+        requestAnimationFrame(() => {
+            updateSubtitlePositions();
+            createMarkers();
+            setupSyncScroll();
+        });
     }
 
-    function isSubtitleModified(original, corrected) {
-        return original.text.trim().replace(/\r?\n/g, ' ').normalize() !==
-            corrected.text.trim().replace(/\r?\n/g, ' ').normalize();
+    function updateSubtitlePositions() {
+        const correctedEntries = correctedContentDiv.querySelectorAll('.subtitle-entry');
+        correctedEntries.forEach(entry => {
+            const index = parseInt(entry.dataset.index);
+            if (!isNaN(index)) {
+                subtitlePositions.set(index, {
+                    top: entry.offsetTop,
+                    height: entry.offsetHeight
+                });
+            }
+        });
     }
 
     function createMarkers() {
         markerArea.innerHTML = '';
         const correctedColumn = document.getElementById('correctedSubtitles');
         const totalHeight = correctedColumn.scrollHeight;
+        const fragment = document.createDocumentFragment();
 
         modifiedEntries.forEach(entry => {
-            const element = correctedContentDiv.querySelector(`.subtitle-entry[data-index="${entry.index}"]`);
-            if (element) {
-                const position = (element.offsetTop / totalHeight) * 100;
+            const position = subtitlePositions.get(entry.index);
+            if (position) {
                 const marker = document.createElement('div');
                 marker.className = 'marker';
-                marker.style.top = `${position}%`;
+                marker.dataset.index = entry.index;
+                marker.style.top = `${(position.top / totalHeight) * 100}%`;
 
                 const tooltip = document.createElement('div');
                 tooltip.className = 'marker-tooltip';
+                // 去除 HTML 标签
+                const cleanOriginal = entry.original.replace(/<[^>]*>/g, '');
+                const cleanCorrected = entry.corrected.replace(/<[^>]*>/g, '');
                 tooltip.textContent = `原文: ${entry.original}\n修改: ${entry.corrected}`;
                 marker.appendChild(tooltip);
 
-                marker.addEventListener('click', (e) => {
+                marker.onclick = (e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    scrollToSubtitle(entry.index);
+                };
 
-                    // 移除所有现有的高亮
-                    document.querySelectorAll('.subtitle-entry.highlighted').forEach(el => {
-                        el.classList.remove('highlighted');
-                    });
-
-                    // 添加新的高亮
-                    element.classList.add('highlighted');
-
-                    // 设置自动滚动标志
-                    isAutoScrolling = true;
-
-                    // 计算滚动位置
-                    const correctedColumn = document.getElementById('correctedSubtitles');
-                    const originalColumn = document.getElementById('originalSubtitles');
-                    const elementTop = element.offsetTop;
-                    const containerHeight = correctedColumn.clientHeight;
-                    const scrollTop = elementTop - (containerHeight / 2) + (element.clientHeight / 2);
-
-                    // 同时滚动两个列
-                    correctedColumn.scrollTo({
-                        top: scrollTop,
-                        behavior: 'smooth'
-                    });
-
-                    originalColumn.scrollTo({
-                        top: scrollTop,
-                        behavior: 'smooth'
-                    });
-
-                    // 滚动完成后重置标志
-                    setTimeout(() => {
-                        isAutoScrolling = false;
-                    }, 1000); // 设置足够的时间让滚动动画完成
-
-                    // 2秒后移除高亮
-                    setTimeout(() => {
-                        element.classList.remove('highlighted');
-                    }, 2000);
-                });
-
-                markerArea.appendChild(marker);
+                fragment.appendChild(marker);
             }
         });
+
+        markerArea.appendChild(fragment);
     }
 
-    let isAutoScrolling = false;
-    function setupSyncScroll() {
-        const originalColumn = document.getElementById('originalSubtitles');
+    function scrollToSubtitle(index) {
+        const position = subtitlePositions.get(index);
+        if (!position) return;
+
         const correctedColumn = document.getElementById('correctedSubtitles');
-        // let isScrolling = false;
-        //
-        // function syncScroll(source, target) {
-        //     if (!isScrolling) {
-        //         isScrolling = true;
-        //         target.scrollTop = source.scrollTop;
-        //         setTimeout(() => {
-        //             isScrolling = false;
-        //         }, 50);
-        //     }
-        // }
-        //
-        // originalColumn.addEventListener('scroll', () => syncScroll(originalColumn, correctedColumn));
-        // correctedColumn.addEventListener('scroll', () => syncScroll(correctedColumn, originalColumn));
+        const originalColumn = document.getElementById('originalSubtitles');
+        const containerHeight = correctedColumn.clientHeight;
+        const scrollTop = position.top - (containerHeight / 2) + (position.height / 2);
 
-        // // 使用 requestAnimationFrame 来优化滚动性能
-        // let ticking = false;
-        // function syncScroll(source, target) {
-        //     if (!ticking) {
-        //         requestAnimationFrame(() => {
-        //             target.scrollTop = source.scrollTop;
-        //             ticking = false;
-        //         });
-        //         ticking = true;
-        //     }
-        // }
-        // // 使用 scroll 事件而不是 onscroll
-        // originalColumn.addEventListener('scroll', () => {
-        //     syncScroll(originalColumn, correctedColumn);
-        // }, { passive: true });
-        //
-        // correctedColumn.addEventListener('scroll', () => {
-        //     syncScroll(correctedColumn, originalColumn);
-        // }, { passive: true });
+        // 移除所有现有的高亮
+        document.querySelectorAll('.subtitle-entry.highlighted').forEach(el => {
+            el.classList.remove('highlighted');
+        });
 
-        // // 简单直接的同步滚动
-        // originalColumn.addEventListener('scroll', () => {
-        //     correctedColumn.scrollTop = originalColumn.scrollTop;
-        // });
-        //
-        // correctedColumn.addEventListener('scroll', () => {
-        //     originalColumn.scrollTop = correctedColumn.scrollTop;
-        // });
+        // 高亮显示目标元素
+        const element = correctedContentDiv.querySelector(`.subtitle-entry[data-index="${index}"]`);
+        if (element) {
+            element.classList.add('highlighted');
 
-        function syncScroll(source, target) {
-            if (!isAutoScrolling) {
-                isAutoScrolling = true;
-                target.scrollTop = source.scrollTop;
-                isAutoScrolling = false;
-            }
+            // 暂时禁用滚动同步
+            isScrolling = true;
+
+            // 直接设置滚动位置
+            originalColumn.scrollTop = scrollTop;
+            correctedColumn.scrollTop = scrollTop;
+
+            // 恢复滚动同步并移除高亮
+            setTimeout(() => {
+                element.classList.remove('highlighted');
+                isScrolling = false;
+            }, 2000);
         }
-
-        originalColumn.addEventListener('scroll', () => {
-            syncScroll(originalColumn, correctedColumn);
-        }, { passive: true });
-
-        correctedColumn.addEventListener('scroll', () => {
-            syncScroll(correctedColumn, originalColumn);
-        }, { passive: true });
     }
 
-    function createSubtitleEntry(subtitle, original = null) {
+    function createSubtitleEntryElement(subtitle, original = null) {
+        const div = document.createElement('div');
         let className = "subtitle-entry";
         let textClass = "";
-        const dataIndex = `data-index="${subtitle.index}"`;
+        div.dataset.index = subtitle.index;
 
         if (original) {
             const isModified = isSubtitleModified(original, subtitle);
@@ -594,8 +558,7 @@
                 textClass = "modified";
             }
 
-            return `
-            <div class="${className}" ${dataIndex}>
+            div.innerHTML = `
                 <div class="time">
                     ${subtitle.index} | <span contenteditable="true"
                     onblur="updateSubtitleTime(${subtitle.index}, this.textContent)"
@@ -605,16 +568,60 @@
                 <div class="text ${textClass}" contenteditable="true"
                     onblur="updateSubtitleText(${subtitle.index}, this.textContent)"
                 >${subtitle.text}</div>
-            </div>
-        `;
+            `;
+        } else {
+            div.innerHTML = `
+                <div class="time">${subtitle.index} | ${subtitle.time}</div>
+                <div class="text ${textClass}">${subtitle.text}</div>
+            `;
         }
 
-        return `
-        <div class="${className}" ${dataIndex}>
-            <div class="time">${subtitle.index} | ${subtitle.time}</div>
-            <div class="text ${textClass}">${subtitle.text}</div>
-        </div>
-        `;
+        div.className = className;
+        return div;
+    }
+
+    function isSubtitleModified(original, corrected) {
+        return original.text.trim().replace(/\r?\n/g, ' ').normalize() !==
+            corrected.text.trim().replace(/\r?\n/g, ' ').normalize();
+    }
+
+    function setupSyncScroll() {
+        const originalColumn = document.getElementById('originalSubtitles');
+        const correctedColumn = document.getElementById('correctedSubtitles');
+
+        originalColumn.onscroll = () => {
+            if (!isScrolling) {
+                correctedColumn.scrollTop = originalColumn.scrollTop;
+            }
+        };
+
+        correctedColumn.onscroll = () => {
+            if (!isScrolling) {
+                originalColumn.scrollTop = correctedColumn.scrollTop;
+            }
+        };
+    }
+
+    const debouncedUpdateSubtitleText = debounce((index, newText) => {
+        const subtitle = correctedSubtitles.find(s => s.index === index);
+        if (subtitle) {
+            const oldText = subtitle.text;
+            subtitle.text = newText;
+
+            const originalSubtitle = originalSubtitles.find(s => s.index === index);
+            const wasModified = isSubtitleModified(originalSubtitle, { text: oldText });
+            const isNowModified = isSubtitleModified(originalSubtitle, { text: newText });
+
+            if (wasModified !== isNowModified) {
+                updateModifiedStatus(index, isNowModified);
+                updateSubtitlePositions();
+                createMarkers();
+            }
+        }
+    }, 300);
+
+    function updateSubtitleText(index, newText) {
+        debouncedUpdateSubtitleText(index, newText);
     }
 
     function updateSubtitleTime(index, newTime) {
@@ -624,13 +631,11 @@
         }
     }
 
-    function updateSubtitleText(index, newText) {
-        const subtitle = correctedSubtitles.find(s => s.index === index);
-        if (subtitle) {
-            subtitle.text = newText;
-            // 更新修改标记
-            showComparison();
-            createMarkers();
+    function updateModifiedStatus(index, isModified) {
+        const entry = correctedContentDiv.querySelector(`.subtitle-entry[data-index="${index}"]`);
+        if (entry) {
+            entry.classList.toggle('modified', isModified);
+            entry.querySelector('.text').classList.toggle('modified', isModified);
         }
     }
 
