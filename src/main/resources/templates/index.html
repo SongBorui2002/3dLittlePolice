@@ -115,7 +115,7 @@
         }
         .subtitle-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 20px;
             margin-top: 20px;
         }
@@ -189,6 +189,10 @@
             line-height: 1.4;
             padding: 5px;
             border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+            white-space: nowrap;
+            overflow-x: auto;
         }
         .text.modified {
             background-color: #ffebee;
@@ -210,6 +214,15 @@
         .button-container {
             display: flex;
             justify-content: center;
+        }
+        .dedede-modified {
+            background-color: rgba(255, 235, 59, 0.36);
+            /*padding: 0 2px;*/
+            border-radius: 4px;
+            font-weight: normal;
+        }
+        i .dedede-modified {
+            font-style: italic;
         }
     </style>
 </head>
@@ -556,9 +569,81 @@
             if (isModified) {
                 className += " modified";
                 textClass = "modified";
-            }
 
-            div.innerHTML = `
+                // 创建一个解析HTML的函数
+                function parseAndHighlight(text, originalText) {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(text, 'text/html');
+                    const originalDoc = parser.parseFromString(originalText, 'text/html');
+
+                    // 递归处理节点
+                    function processNode(node, originalNode) {
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            let newText = '';
+                            let originalContent = originalNode ? originalNode.textContent : '';
+                            let currentText = node.textContent;
+
+                            for (let i = 0; i < currentText.length; i++) {
+                                const char = currentText[i];
+                                if ('的得地'.includes(char)) {
+                                    const originalChar = originalContent[i];
+                                    if ('的得地'.includes(originalChar) && originalChar !== char) {
+                                        newText += `<span class="dedede-modified">${char}</span>`;
+                                    } else {
+                                        newText += char;
+                                    }
+                                } else {
+                                    newText += char;
+                                }
+                            }
+
+                            const span = document.createElement('span');
+                            span.innerHTML = newText;
+                            return span;
+                        }
+
+                        // 处理元素节点
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            const newElement = document.createElement(node.tagName);
+                            // 复制属性
+                            Array.from(node.attributes).forEach(attr => {
+                                newElement.setAttribute(attr.name, attr.value);
+                            });
+
+                            // 递归处理子节点
+                            Array.from(node.childNodes).forEach((child, index) => {
+                                const originalChild = originalNode ? originalNode.childNodes[index] : null;
+                                const processedChild = processNode(child, originalChild);
+                                if (processedChild) {
+                                    newElement.appendChild(processedChild);
+                                }
+                            });
+
+                            return newElement;
+                        }
+
+                        return node.cloneNode(true);
+                    }
+
+                    const processedBody = processNode(doc.body, originalDoc.body);
+                    return processedBody.innerHTML;
+                }
+
+                const highlightedText = parseAndHighlight(subtitle.text, original.text);
+
+                div.innerHTML = `
+                <div class="time">
+                    ${subtitle.index} | <span contenteditable="true"
+                    onblur="updateSubtitleTime(${subtitle.index}, this.textContent)"
+                    style="display: inline-block; min-width: 10px;"
+                    >${subtitle.time}</span>
+                </div>
+                <div class="text ${textClass}" contenteditable="true"
+                    onblur="updateSubtitleText(${subtitle.index}, this.textContent)"
+                >${highlightedText}</div>
+            `;
+            } else {
+                div.innerHTML = `
                 <div class="time">
                     ${subtitle.index} | <span contenteditable="true"
                     onblur="updateSubtitleTime(${subtitle.index}, this.textContent)"
@@ -569,11 +654,12 @@
                     onblur="updateSubtitleText(${subtitle.index}, this.textContent)"
                 >${subtitle.text}</div>
             `;
+            }
         } else {
             div.innerHTML = `
-                <div class="time">${subtitle.index} | ${subtitle.time}</div>
-                <div class="text ${textClass}">${subtitle.text}</div>
-            `;
+            <div class="time">${subtitle.index} | ${subtitle.time}</div>
+            <div class="text ${textClass}">${subtitle.text}</div>
+        `;
         }
 
         div.className = className;
@@ -621,7 +707,27 @@
     }, 300);
 
     function updateSubtitleText(index, newText) {
-        debouncedUpdateSubtitleText(index, newText);
+        const subtitle = correctedSubtitles.find(s => s.index === index);
+        if (subtitle) {
+            const oldText = subtitle.text;
+            subtitle.text = newText;
+
+            const originalSubtitle = originalSubtitles.find(s => s.index === index);
+            const wasModified = isSubtitleModified(originalSubtitle, { text: oldText });
+            const isNowModified = isSubtitleModified(originalSubtitle, { text: newText });
+
+            if (wasModified !== isNowModified) {
+                updateModifiedStatus(index, isNowModified);
+                // 重新渲染以更新高亮
+                const entry = correctedContentDiv.querySelector(`.subtitle-entry[data-index="${index}"]`);
+                if (entry) {
+                    const newEntry = createSubtitleEntryElement(subtitle, originalSubtitle);
+                    entry.parentNode.replaceChild(newEntry, entry);
+                }
+                updateSubtitlePositions();
+                createMarkers();
+            }
+        }
     }
 
     function updateSubtitleTime(index, newTime) {

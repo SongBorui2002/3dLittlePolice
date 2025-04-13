@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
 
 import lombok.Data;
 import lombok.AllArgsConstructor;
@@ -343,5 +344,112 @@ public class SubtitleService {
         for (int i = 0; i < batches.size(); i++) {
             updateCorrectedText(entries, batches.get(i), correctedTexts.get(i));
         }
+    }
+
+    public List<String> validateAndFilterModifications(
+            List<BatchCorrection> batches,
+            List<String> correctedTexts
+    ) {
+        List<String> validatedTexts = new ArrayList<>();
+
+        for (int i = 0; i < batches.size(); i++) {
+            BatchCorrection batch = batches.get(i);
+            String originalText = batch.getText();
+            String correctedText = correctedTexts.get(i);
+
+            log.debug("处理批次 {}/{}, 字幕索引: {}",
+                    i + 1, batches.size(), batch.getEntryIndices());
+
+            // 在原文中找出"的得地"位置
+            List<Integer> positions = findDeDeDePositions(originalText);
+
+            // 应用验证后的修改
+            String validatedText = applyDeDeDeModifications(
+                    originalText,
+                    correctedText,
+                    positions
+            );
+
+            validatedTexts.add(validatedText);
+        }
+
+        return validatedTexts;
+    }
+
+    private List<Integer> findDeDeDePositions(String text) {
+        List<Integer> positions = new ArrayList<>();
+        char[] targetChars = {'的', '得', '地'};
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            for (char target : targetChars) {
+                if (c == target) {
+                    positions.add(i);
+                    break;
+                }
+            }
+        }
+        return positions;
+    }
+
+    private String applyDeDeDeModifications(
+            String original,
+            String modified,
+            List<Integer> positions
+    ) {
+        StringBuilder result = new StringBuilder(original);
+        int modificationCount = 0;
+
+        for (int pos : positions) {
+            Character modifiedChar = findMatchingCharacter(modified, original, pos);
+            if (modifiedChar != null) {
+                result.setCharAt(pos, modifiedChar);
+                modificationCount++;
+                log.debug("位置 {} 处: '{}' -> '{}'",
+                        pos, original.charAt(pos), modifiedChar);
+            }
+        }
+
+        log.debug("应用了 {} 处修改", modificationCount);
+        return result.toString();
+    }
+
+    private Character findMatchingCharacter(
+            String modified,
+            String original,
+            int position
+    ) {
+        try {
+            int contextSize = 2;
+            int start = Math.max(0, position - contextSize);
+            int end = Math.min(original.length(), position + contextSize + 1);
+            String context = original.substring(start, end);
+            char originalChar = original.charAt(position);
+
+            // 构建搜索模式，避免使用字符字面量
+            StringBuilder patternBuilder = new StringBuilder();
+            for (int i = 0; i < context.length(); i++) {
+                if (i == (position - start)) {
+                    patternBuilder.append("[的得地]");
+                } else {
+                    patternBuilder.append(Pattern.quote(String.valueOf(context.charAt(i))));
+                }
+            }
+
+            Pattern p = Pattern.compile(patternBuilder.toString());
+            Matcher m = p.matcher(modified);
+
+            if (m.find()) {
+                int matchPos = m.start() + (position - start);
+                if (matchPos < modified.length()) {
+                    char c = modified.charAt(matchPos);
+                    if (c == '的' || c == '得' || c == '地') {
+                        return c;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("位置 {} 的匹配失败: {}", position, e.getMessage());
+        }
+        return null;
     }
 } 

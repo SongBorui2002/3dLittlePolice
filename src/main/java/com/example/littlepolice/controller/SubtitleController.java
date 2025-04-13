@@ -116,10 +116,16 @@ public class SubtitleController {
                 List<String> correctedTexts = siliconflowService.correctTextsParallel(batchTexts);
 //                log.info("API请求完成，耗时: {}ms", System.currentTimeMillis() - apiStartTime);
 
+                // 在这里添加验证步骤，直接使用已有的batches信息
+                List<String> validatedTexts = subtitleService.validateAndFilterModifications(
+                        batches,         // 已经包含了需要修改的字幕和索引信息
+                        correctedTexts   // API返回的修改后文本
+                );
+
                 // 更新所有批次的修正文本
                 long updateTime = System.currentTimeMillis();
                 for (int i = 0; i < batches.size(); i++) {
-                    subtitleService.updateCorrectedText(entries, batches.get(i), correctedTexts.get(i));
+                    subtitleService.updateCorrectedText(entries, batches.get(i), validatedTexts.get(i));
                 }
 //                log.info("更新字幕文本完成，耗时: {}ms", System.currentTimeMillis() - updateTime);
 
