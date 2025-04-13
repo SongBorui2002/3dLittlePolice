@@ -48,7 +48,7 @@ public class SiliconFlowService implements DisposableBean {
 //                        log.info("API Response: {}", responseBody);
 
                         long endTime = System.currentTimeMillis();
-                        log.info("API请求处理时间: {} 毫秒, URL: {}", endTime - startTime, originalRequest.url());
+//                        log.info("API请求处理时间: {} 毫秒, URL: {}", endTime - startTime, originalRequest.url());
                         return response;
                     } catch (Exception e) {
                         log.error("API请求失败，耗时: {} 毫秒, URL: {}, 错误: {}",
@@ -71,7 +71,7 @@ public class SiliconFlowService implements DisposableBean {
                 .build();
 
         this.api = retrofit.create(SiliconFlowApi.class);
-        this.executorService = Executors.newFixedThreadPool(20);
+        this.executorService = Executors.newFixedThreadPool(200);
     }
 
     @Override
@@ -93,7 +93,38 @@ public class SiliconFlowService implements DisposableBean {
             List<SiliconFlowRequest.Message> messages = Arrays.asList(
                     SiliconFlowRequest.Message.builder()
                             .role("system")
-                            .content("你是一个中文语法检查助手，专门负责修正文本中的'的得地'用法。请只返回修改后的文本，不需要解释。请注意只修改“的得地”的错误用法，无需修正其他文字错误。可以适当结合每句话前一句与后一句的上下文，正确使用中文的“的得地”。")
+                            .content("你是一个中文语法检查助手，专门负责修正文本中的'的得地'用法，无需修改其余语法与标点错误。请只返回修改后的文本，不需要解释。" +
+                                    "如：（1\n" +
+                                    "00:00:13,100 --> 00:00:16,651\n" +
+                                    "如果我们信奉得神 还有我们追逐的希望\n" +
+                                    "\n" +
+                                    "2\n" +
+                                    "00:00:16,651 --> 00:00:20,651\n" +
+                                    "都已经只是科学性地东西的话 那么我们的爱是否 也将科学化呢\n" +
+                                    "\n" +
+                                    "3\n" +
+                                    "00:00:20,651 --> 00:00:22,751\n" +
+                                    "利尔亚当《未来的夏娃》）只需修改为（1\n" +
+                                    "00:00:13,100 --> 00:00:16,651\n" +
+                                    "如果我们信奉的神 还有我们追逐的希望\n" +
+                                    "\n" +
+                                    "2\n" +
+                                    "00:00:16,651 --> 00:00:20,651\n" +
+                                    "都已经只是科学性的东西的话 那么我们的爱是否 也将科学化呢\n" +
+                                    "\n" +
+                                    "3\n" +
+                                    "00:00:20,651 --> 00:00:22,751\n" +
+                                    "利尔亚当《未来的夏娃》）而无需修改为（1\n" +
+                                    "00:00:13,100 --> 00:00:16,651\n" +
+                                    "如果我们信奉的神，还有我们追逐的希望\n" +
+                                    "\n" +
+                                    "2\n" +
+                                    "00:00:16,651 --> 00:00:20,651\n" +
+                                    "都已经只是科学性的东西的话，那么我们的爱是否也将科学化呢\n" +
+                                    "\n" +
+                                    "3\n" +
+                                    "00:00:20,651 --> 00:00:22,751\n" +
+                                    "利尔亚当《未来的夏娃》），请注意：只修改“的得地”的错误用法，无需修改其余语法与标点错误。请只返回修改后的文本，不需要解释。" )
                             .build(),
                     SiliconFlowRequest.Message.builder()
                             .role("user")
@@ -102,13 +133,13 @@ public class SiliconFlowService implements DisposableBean {
             );
 
             SiliconFlowRequest request = SiliconFlowRequest.builder()
-                    .model("Pro/deepseek-ai/DeepSeek-V3")
+                    .model("Pro/deepseek-ai/DeepSeek-V3-1226")
                     .messages(messages)
                     .stream(false)
                     .maxTokens(4096)
-                    .temperature(0.3)
-                    .topP(0.3)
-                    .topK(50)
+                    .temperature(0.1)
+                    .topP(0.01)
+                    .topK(30)
                     .frequencyPenalty(0.5)
                     .n(1)
                     .build();
@@ -147,10 +178,10 @@ public class SiliconFlowService implements DisposableBean {
                 final String text = texts.get(i);
 
                 CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
-                    log.info("开始处理第 {}/{} 个批次", index + 1, texts.size());
+//                    log.info("开始处理第 {}/{} 个批次", index + 1, texts.size());
                     try {
                         String result = correctText(text);
-                        log.info("第 {}/{} 个批次处理完成", index + 1, texts.size());
+//                        log.info("第 {}/{} 个批次处理完成", index + 1, texts.size());
                         return result;
                     } catch (Exception e) {
                         log.error("处理第 {}/{} 个批次时发生错误: {}", index + 1, texts.size(), e.getMessage());
@@ -174,6 +205,8 @@ public class SiliconFlowService implements DisposableBean {
                 futures.forEach(f -> f.cancel(true));
             }
 
+            allFutures.get(10, TimeUnit.MINUTES);
+//            log.info("所有API请求完成，开始收集结果");
             // 收集结果
             List<String> results = new ArrayList<>();
             for (int i = 0; i < futures.size(); i++) {
@@ -185,7 +218,7 @@ public class SiliconFlowService implements DisposableBean {
                 }
             }
 
-            log.info("所有批次处理完成，共 {} 个批次", texts.size());
+//            log.info("所有批次处理完成，共 {} 个批次", texts.size());
             return results;
         } catch (Exception e) {
             log.error("并行处理过程中发生错误", e);

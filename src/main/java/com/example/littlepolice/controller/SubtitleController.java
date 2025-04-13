@@ -28,8 +28,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Controller
@@ -55,6 +57,7 @@ public class SubtitleController {
             this.correctedContent = content;
             return this;
         }
+
     }
 
 
@@ -65,6 +68,7 @@ public class SubtitleController {
 
     @PostMapping("/correct")
     public ResponseEntity<?> correctSubtitle(@RequestParam("file") MultipartFile file) {
+        long startTime = System.currentTimeMillis();
         try {
             log.info("开始处理字幕文件: {}, 大小: {} bytes", file.getOriginalFilename(), file.getSize());
 
@@ -83,11 +87,18 @@ public class SubtitleController {
             log.info("提取需要修正的文本...");
             List<BatchCorrection> batches = subtitleService.extractTextForCorrection(entries);
 
+            // 收集需要修正的字幕序号
+            List<Integer> modifiedIndices = entries.stream()
+                    .filter(SubtitleEntry::isNeedsCorrection)
+                    .map(SubtitleEntry::getIndex)
+                    .collect(Collectors.toList());
+
             if (batches.isEmpty()) {
                 log.info("没有需要修正的文本，返回原文件");
                 return ResponseEntity.ok(new SubtitleResponse()
                         .setOriginalContent(content)
                         .setCorrectedContent(content));
+
             }
 
             // 分批处理文本
@@ -100,29 +111,51 @@ public class SubtitleController {
 
             // 并行处理所有批次
             try {
+                //api响应开始
+                long apiStartTime = System.currentTimeMillis();
                 List<String> correctedTexts = siliconflowService.correctTextsParallel(batchTexts);
+//                log.info("API请求完成，耗时: {}ms", System.currentTimeMillis() - apiStartTime);
 
                 // 更新所有批次的修正文本
+                long updateTime = System.currentTimeMillis();
                 for (int i = 0; i < batches.size(); i++) {
                     subtitleService.updateCorrectedText(entries, batches.get(i), correctedTexts.get(i));
                 }
+//                log.info("更新字幕文本完成，耗时: {}ms", System.currentTimeMillis() - updateTime);
+
+                // 生成新内容
+                long generateTime = System.currentTimeMillis();
+                String newContent = subtitleService.generateSrtContent(entries);
+//                log.info("内容生成完成，耗时: {}ms", System.currentTimeMillis() - generateTime);
+
+                // 构建响应
+                long responseTime = System.currentTimeMillis();
+                SubtitleResponse response = new SubtitleResponse()
+                        .setOriginalContent(content)
+                        .setCorrectedContent(newContent);
+
+                long endTime = System.currentTimeMillis();
+//                log.info("响应构建完成，耗时: {}ms", endTime - responseTime);
+                log.info("总处理耗时: {}ms", endTime - startTime);
+
+                return ResponseEntity.ok(response);
             } catch (Exception e) {
                 log.error("并行处理批次时发生错误", e);
                 throw new RuntimeException("并行处理失败: " + e.getMessage());
             }
 
-            // 生成新的 SRT 内容
-            log.info("生成新的 SRT 内容...");
-            String newContent = subtitleService.generateSrtContent(entries);
-
-            // 保存并返回文件
-            log.info("保存并返回修正后的文件...");
-//            return saveAndReturnFile(newContent, file.getOriginalFilename());
-            SubtitleResponse response = new SubtitleResponse()
-                    .setOriginalContent(content)
-                    .setCorrectedContent(newContent);
-
-            return ResponseEntity.ok(response);
+//            // 生成新的 SRT 内容
+//            log.info("生成新的 SRT 内容...");
+//            String newContent = subtitleService.generateSrtContent(entries);
+//
+//            // 保存并返回文件
+//            log.info("保存并返回修正后的文件...");
+////            return saveAndReturnFile(newContent, file.getOriginalFilename());
+//            SubtitleResponse response = new SubtitleResponse()
+//                    .setOriginalContent(content)
+//                    .setCorrectedContent(newContent);
+//
+//            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             log.error("处理字幕文件时发生错误", e);

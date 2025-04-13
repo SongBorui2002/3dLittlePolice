@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import java.util.List;
 
+
+
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)  // 这个注解已经存在，但确保它在类上
 public class SiliconFlowChatCompletionResult {

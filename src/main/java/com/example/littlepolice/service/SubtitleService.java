@@ -27,7 +27,7 @@ public class SubtitleService {
     private int maxBatchTokens; // 每批最大token数，可通过配置文件调整
 
     //定义全局变量最大批次值
-    private static final int MAX_BATCH_SIZE = 20;
+    private static final int MAX_BATCH_SIZE = 26;
 
     private static final Pattern TIME_CODE_PATTERN = Pattern.compile("\\d{2}:\\d{2}:\\d{2},\\d{3}\\s*-->\\s*\\d{2}:\\d{2}:\\d{2},\\d{3}");
 
@@ -51,6 +51,7 @@ public class SubtitleService {
         // 兼容 Windows 和 macOS/Linux 换行符
         String[] blocks = content.trim().split("\\r?\\n\\s*\\r?\\n");
 
+        //行分割
         for (String block : blocks) {
             String[] lines = block.trim().split("\\r?\\n");
 
@@ -99,61 +100,14 @@ public class SubtitleService {
     public List<BatchCorrection> extractTextForCorrection(List<SubtitleEntry> entries) {
         List<BatchCorrection> batches = new ArrayList<>();
 
-        // 如果字幕条数小于20，使用单批处理
-        if (entries.size() < 20) {
+        // 如果字幕条数小于200，使用单批处理
+        if (entries.size() < 200) {
             return createSingleBatch(entries);
         }
 
-        // 字幕条数大于20，使用三批处理
+        // 字幕条数大于20，使用多批处理
         return createTripleBatches(entries);
 
-
-
-//        try {
-//            List<BatchCorrection> batches = entries.size() < 20 ?
-//                    createSingleBatch(entries) : createTripleBatches(entries);
-//
-//            // 记录所有需要处理的索引
-//            Set<Integer> allIndices = new HashSet<>();
-//            StringBuilder indicesLog = new StringBuilder("所有需要处理的字幕索引:\n");
-//
-//            for (int i = 0; i < batches.size(); i++) {
-//                BatchCorrection batch = batches.get(i);
-//                indicesLog.append(String.format("批次 %d/%d 索引: %s\n",
-//                        i + 1,
-//                        batches.size(),
-//                        batch.getEntryIndices()));
-//
-//                allIndices.addAll(batch.getEntryIndices());
-//            }
-//
-//            indicesLog.append(String.format("总共需要处理 %d 个唯一索引: %s",
-//                    allIndices.size(),
-//                    new ArrayList<>(allIndices).stream().sorted().collect(Collectors.toList())));
-//
-//            log.info(indicesLog.toString());
-//
-//            // 记录批次信息
-//            for (int i = 0; i < batches.size(); i++) {
-//                BatchCorrection batch = batches.get(i);
-//                Map<String, Object> batchInfo = new HashMap<>();
-//                batchInfo.put("batchIndex", i + 1);
-//                batchInfo.put("totalBatches", batches.size());
-//                batchInfo.put("entryCount", batch.getEntryIndices().size());
-//                batchInfo.put("tokenCount", batch.getTokenCount());
-//                batchInfo.put("text", batch.getText());
-//
-//                log.info("批次 {}/{} 信息: {}",
-//                        i + 1,
-//                        batches.size(),
-//                        mapper.writerWithDefaultPrettyPrinter().writeValueAsString(batchInfo));
-//            }
-//
-//            return batches;
-//        } catch (Exception e) {
-//            log.error("JSON序列化失败", e);
-//            return new ArrayList<>();
-//        }
     }
 
     private List<BatchCorrection> createSingleBatch(List<SubtitleEntry> entries) {
@@ -216,7 +170,7 @@ public class SubtitleService {
         int entriesPerBatch = needsCorrectionEntries.size() / MAX_BATCH_SIZE;
         int remainingEntries = needsCorrectionEntries.size() % MAX_BATCH_SIZE;
 
-        // 创建三个批次
+        // 创建多个批次
         int startIndex = 0;
         for (int batchNum = 0; batchNum < MAX_BATCH_SIZE; batchNum++) {
             int batchSize = entriesPerBatch + (batchNum < remainingEntries ? 1 : 0);
@@ -302,11 +256,11 @@ public class SubtitleService {
             splitInfo.put("expectedCount", batch.getEntryIndices().size());
             splitInfo.put("actualCount", correctedTexts.length);
             splitInfo.put("splitResults", Arrays.asList(correctedTexts));
-//
+
 //            log.info("文本分割结果: {}",
 //                    mapper.writerWithDefaultPrettyPrinter().writeValueAsString(splitInfo));
 
-            Thread.sleep(100); // 100毫秒的延迟，通常足够了
+            Thread.sleep(10); // 100毫秒的延迟，通常足够了
             if (correctedTexts.length != batch.getEntryIndices().size()) {
                 log.error("文本数量不匹配: 期望 {} 条，实际 {} 条",
                         batch.getEntryIndices().size(),
@@ -341,61 +295,6 @@ public class SubtitleService {
         }
     }
 
-//    public void updateCorrectedText(List<SubtitleEntry> entries, BatchCorrection batch, String correctedText) {
-//        String[] correctedTexts = correctedText.split("\n---\n");
-//
-//        if (correctedTexts.length != batch.getEntryIndices().size()) {
-//            log.error("修正后的文本数量 ({}) 与原文本数量 ({}) 不匹配",
-//                    correctedTexts.length, batch.getEntryIndices().size());
-//            return;
-//        }
-//
-//
-//
-//
-//        for (int i = 0; i < correctedTexts.length; i++) {
-//            int entryIndex = batch.getEntryIndices().get(i);
-//            String corrected = correctedTexts[i].trim();
-//            entries.get(entryIndex).setText(corrected);
-//            entries.get(entryIndex).setNeedsCorrection(false); // 标记为已修正
-//        }
-//
-//        try {
-//            // 记录批次处理信息
-//            Map<String, Object> batchInfo = new HashMap<>();
-//            batchInfo.put("entryCount", batch.getEntryIndices().size());
-//            batchInfo.put("originalText", batch.getText());
-//            batchInfo.put("correctedText", correctedText);
-//            batchInfo.put("entryIndices", batch.getEntryIndices());
-//
-//            log.info("批次处理详情: {}", mapper.writerWithDefaultPrettyPrinter().writeValueAsString(batchInfo));
-//
-//
-//            if (correctedTexts.length != batch.getEntryIndices().size()) {
-//                Map<String, Object> errorInfo = new HashMap<>();
-//                errorInfo.put("expectedCount", batch.getEntryIndices().size());
-//                errorInfo.put("actualCount", correctedTexts.length);
-//                errorInfo.put("splitResults", correctedTexts);
-//
-//                log.error("文本数量不匹配: {}",
-//                        mapper.writerWithDefaultPrettyPrinter().writeValueAsString(errorInfo));
-//
-//                // 继续处理可用的部分
-//                int validSize = Math.min(correctedTexts.length, batch.getEntryIndices().size());
-//                for (int i = 0; i < validSize; i++) {
-//                    int entryIndex = batch.getEntryIndices().get(i);
-//                    String corrected = correctedTexts[i].trim();
-//                    entries.get(entryIndex).setText(corrected);
-//                    entries.get(entryIndex).setNeedsCorrection(false);
-//                }
-//                return;
-//            }
-//
-//            // ... rest of the code ...
-//        } catch (Exception e) {
-//            log.error("JSON序列化失败", e);
-//        }
-//    }
 
     public String generateSrtContent(List<SubtitleEntry> entries) {
         StringBuilder content = new StringBuilder();
