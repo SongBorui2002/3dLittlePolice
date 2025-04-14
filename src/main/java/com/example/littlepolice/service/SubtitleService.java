@@ -413,13 +413,29 @@ public class SubtitleService {
         return result.toString();
     }
 
-    private Character findMatchingCharacter(
+    private Character findMatchingCharacter(String modified, String original, int position) {
+        try {
+            // 1. 先尝试严格匹配
+            Character result = strictMatch(modified, original, position);
+            if (result != null) {
+                return result;
+            }
+
+            // 2. 如果严格匹配失败，尝试宽松匹配
+            return looseMatch(modified, original, position);
+        } catch (Exception e) {
+            log.debug("位置 {} 的匹配失败: {}", position, e.getMessage());
+            return null;
+        }
+    }
+
+    private Character strictMatch(
             String modified,
             String original,
             int position
     ) {
         try {
-            int contextSize = 2;
+            int contextSize = 1;
             int start = Math.max(0, position - contextSize);
             int end = Math.min(original.length(), position + contextSize + 1);
             String context = original.substring(start, end);
@@ -449,6 +465,41 @@ public class SubtitleService {
             }
         } catch (Exception e) {
             log.debug("位置 {} 的匹配失败: {}", position, e.getMessage());
+        }
+        return null;
+    }
+
+    private Character looseMatch(String modified, String original, int position) {
+        try {
+            // 1. 只匹配目标字符前后各一个字符
+            int start = Math.max(0, position - 1);
+            int end = Math.min(original.length(), position + 2);
+            String context = original.substring(start, end);
+
+            // 2. 构建宽松的正则表达式
+            StringBuilder patternBuilder = new StringBuilder();
+            for (int i = 0; i < context.length(); i++) {
+                if (i == (position - start)) {
+                    patternBuilder.append("[的得地]");
+                } else {
+                    patternBuilder.append("\\S");  // 任意非空白字符
+                }
+            }
+
+            Pattern p = Pattern.compile(patternBuilder.toString());
+            Matcher m = p.matcher(modified);
+
+            if (m.find()) {
+                int matchPos = m.start() + 1;  // 中间位置
+                if (matchPos < modified.length()) {
+                    char c = modified.charAt(matchPos);
+                    if (c == '的' || c == '得' || c == '地') {
+                        return c;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("宽松匹配失败: {}", e.getMessage());
         }
         return null;
     }
