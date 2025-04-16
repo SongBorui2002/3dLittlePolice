@@ -173,8 +173,8 @@
             position: relative;
         }
         .subtitle-entry.modified {
-            background-color: #ffebee;
-            border-left: 3px solid #ef5350;
+            /*background-color: #ffebee;*/
+            border-left: 3px solid #ef5050;
         }
         .subtitle-entry.highlighted {
             background-color: #fff3cd;
@@ -195,7 +195,7 @@
             overflow-x: auto;
         }
         .text.modified {
-            background-color: #ffebee;
+            /*background-color: #ffebee;*/
         }
         .subtitle-column::-webkit-scrollbar {
             width: 16px;
@@ -216,10 +216,12 @@
             justify-content: center;
         }
         .dedede-modified {
-            background-color: rgba(255, 235, 59, 0.36);
-            /*padding: 0 2px;*/
-            border-radius: 4px;
-            font-weight: normal;
+            /*设定字体颜色*/
+            color: #ef5050;
+            /*background-color: rgb(255, 235, 238);*/
+            /*!*padding: 0 2px;*!*/
+            /*border-radius: 4px;*/
+            font-weight: bold;
         }
         i .dedede-modified {
             font-style: italic;
@@ -288,7 +290,7 @@
         }
 
         .modal-buttons .cancel-btn {
-            background-color: #f44336;
+            background-color: #e65100;
             color: white;
         }
 
@@ -795,10 +797,78 @@
             `;
             }
         } else {
-            div.innerHTML = `
+
+            function parseAndHighlight(text, originalText) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+                const originalDoc = parser.parseFromString(originalText, 'text/html');
+
+                // 递归处理节点
+                function processNode(node, originalNode) {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        let newText = '';
+                        let originalContent = originalNode ? originalNode.textContent : '';
+                        let currentText = node.textContent;
+
+                        for (let i = 0; i < currentText.length; i++) {
+                            const char = currentText[i];
+                            if ('的得地'.includes(char)) {
+                                const originalChar = originalContent[i];
+                                if ('的得地'.includes(originalChar) && originalChar !== char) {
+                                    newText += `<span class="dedede-modified">${char}</span>`;
+                                } else {
+                                    newText += char;
+                                }
+                            } else {
+                                newText += char;
+                            }
+                        }
+
+                        const span = document.createElement('span');
+                        span.innerHTML = newText;
+                        return span;
+                    }
+
+                    // 处理元素节点
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        const newElement = document.createElement(node.tagName);
+                        // 复制属性
+                        Array.from(node.attributes).forEach(attr => {
+                            newElement.setAttribute(attr.name, attr.value);
+                        });
+
+                        // 递归处理子节点
+                        Array.from(node.childNodes).forEach((child, index) => {
+                            const originalChild = originalNode ? originalNode.childNodes[index] : null;
+                            const processedChild = processNode(child, originalChild);
+                            if (processedChild) {
+                                newElement.appendChild(processedChild);
+                            }
+                        });
+
+                        return newElement;
+                    }
+
+                    return node.cloneNode(true);
+                }
+
+                const processedBody = processNode(doc.body, originalDoc.body);
+                return processedBody.innerHTML;
+            }
+            // 如果是原始字幕，也需要进行高亮处理
+            const correctedSubtitle = correctedSubtitles.find(s => s.index === subtitle.index);
+            if (correctedSubtitle && isSubtitleModified(subtitle, correctedSubtitle)) {
+                const highlightedOriginalText = parseAndHighlight(subtitle.text, correctedSubtitle.text);
+                div.innerHTML = `
+            <div class="time">${subtitle.index} | ${subtitle.time}</div>
+            <div class="text ${textClass}">${highlightedOriginalText}</div>
+        `;
+            } else {
+                div.innerHTML = `
             <div class="time">${subtitle.index} | ${subtitle.time}</div>
             <div class="text ${textClass}">${subtitle.text}</div>
         `;
+            }
         }
 
         div.className = className;
