@@ -238,7 +238,7 @@
 
         .modal-content {
             background-color: #fefefe;
-            margin: 15% auto;
+            margin: 5% auto 10% auto;
             padding: 20px;
             border: 1px solid #888;
             width: 80%;
@@ -314,6 +314,11 @@
         <div class="modal-content">
             <h2>模型参数配置</h2>
             <form id="parameterForm" class="parameter-form">
+                <!-- 输入siliconflow key -->
+                <div class="form-group">
+                    <label for="siliconflowKey">SiliconFlow Key</label>
+                    <input type="text" id="siliconflowKey" name="siliconflowKey" value="sk-zgmoobmtrwgqjyjyvuuipdhxqnjeqmdzpuqjjmkxfbgakecg" required>
+                </div>
                 <div class="form-group">
                     <label for="model">选择模型</label>
                     <select id="model" name="model" required>
@@ -890,7 +895,8 @@
 
     // 添加全局变量
     let modelParameters = {
-        model: "Pro/Qwen/Qwen2-7B-Instruct",
+        siliconflowKey: "sk-zgmoobmtrwgqjyjyvuuipdhxqnjeqmdzpuqjjmkxfbgakecg",
+        model: "Pro/deepseek-ai/DeepSeek-V3-1226",
         maxTokens: 4096,
         temperature: 0.1,
         topP: 0.01,
@@ -920,6 +926,7 @@
 
         // 获取表单数据
         modelParameters = {
+            siliconflowKey: document.getElementById('siliconflowKey').value,
             model: document.getElementById('model').value,
             maxTokens: parseInt(document.getElementById('maxTokens').value),
             temperature: parseFloat(document.getElementById('temperature').value),
@@ -934,57 +941,6 @@
         // 处理文件
         processFile();
     });
-
-    // 新的处理函数
-    function processFileWithParameters() {
-        if (!selectedSrtFile || !modelParameters) {
-            showStatus('请先选择字幕文件并设置参数', 'error');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('file', selectedSrtFile);
-        formData.append('parameters', JSON.stringify(modelParameters));
-
-        showStatus('正在处理字幕文件，请稍候...', 'processing');
-        progressContainer.style.display = 'block';
-        startButton.disabled = true;
-        downloadArea.style.display = 'none';
-
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-            if (progress < 90) {
-                progress += Math.random() * 10;
-                progressBar.style.width = Math.min(progress, 90) + '%';
-            }
-        }, 500);
-
-        fetch('/correct', {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => {
-                clearInterval(progressInterval);
-                progressBar.style.width = '100%';
-
-                if (!response.ok) {
-                    return response.text().then(text => {
-                        throw new Error(text || '处理文件时发生错误');
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                // ... 其余处理代码保持不变
-            })
-            .catch(error => {
-                clearInterval(progressInterval);
-                progressBar.style.width = '0%';
-                progressContainer.style.display = 'none';
-                showStatus(error.message || '处理文件时发生错误', 'error');
-                startButton.disabled = false;
-            });
-    }
 
 </script>
 </body>

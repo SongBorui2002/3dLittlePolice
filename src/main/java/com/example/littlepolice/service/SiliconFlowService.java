@@ -23,55 +23,14 @@ import java.util.concurrent.*;
 @Slf4j
 @Service
 public class SiliconFlowService implements DisposableBean {
-    private final SiliconFlowApi api;
+    private SiliconFlowApi api;
     private final ExecutorService executorService;
+    private final String apiUrl;
+    private OkHttpClient client;
+    private Retrofit retrofit;
 
-    public SiliconFlowService(@Value("${siliconflow.api.key}") String apiKey,
-                              @Value("${siliconflow.api.url}") String apiUrl) {
-        HttpLoggingInterceptor logging = new HttpLoggingInterceptor(log::info);
-        logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
-
-        OkHttpClient client = new OkHttpClient.Builder()
-                .addInterceptor(logging)
-                .addInterceptor(chain -> {
-                    okhttp3.Request originalRequest = chain.request();
-                    long startTime = System.currentTimeMillis();
-                    okhttp3.Response response = null;
-                    try {
-                        okhttp3.Request newRequest = originalRequest.newBuilder()
-                                .header("Authorization", "Bearer " + apiKey)
-                                .header("Content-Type", "application/json")
-                                .build();
-                        response = chain.proceed(newRequest);
-
-                        // 记录响应内容
-//                        String responseBody = response.peekBody(Long.MAX_VALUE).string();
-//                        log.info("API Response: {}", responseBody);
-
-                        long endTime = System.currentTimeMillis();
-//                        log.info("API请求处理时间: {} 毫秒, URL: {}", endTime - startTime, originalRequest.url());
-                        return response;
-                    } catch (Exception e) {
-                        log.error("API请求失败，耗时: {} 毫秒, URL: {}, 错误: {}",
-                                System.currentTimeMillis() - startTime,
-                                originalRequest.url(),
-                                e.getMessage());
-                        throw e;
-                    }
-                })
-                .connectTimeout(Duration.ofSeconds(300))
-                .readTimeout(Duration.ofSeconds(300))
-                .writeTimeout(Duration.ofSeconds(300))
-                .build();
-
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(apiUrl)
-                .client(client)
-                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-                .addConverterFactory(JacksonConverterFactory.create())
-                .build();
-
-        this.api = retrofit.create(SiliconFlowApi.class);
+    public SiliconFlowService(@Value("${siliconflow.api.url}") String apiUrl) {
+        this.apiUrl = apiUrl;
         this.executorService = Executors.newFixedThreadPool(200);
     }
 
@@ -88,7 +47,48 @@ public class SiliconFlowService implements DisposableBean {
         }
     }
 
+    private synchronized void initializeApiClient(String apiKey) {
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            throw new IllegalArgumentException("API key cannot be null or empty");
+        }
+
+        try {
+            HttpLoggingInterceptor logging = new HttpLoggingInterceptor(log::info);
+            logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
+
+            OkHttpClient client = new OkHttpClient.Builder()
+                    .addInterceptor(logging)
+                    .addInterceptor(chain -> {
+                        okhttp3.Request originalRequest = chain.request();
+                        okhttp3.Request newRequest = originalRequest.newBuilder()
+                                .header("Authorization", "Bearer " + apiKey)
+                                .header("Content-Type", "application/json")
+                                .build();
+                        return chain.proceed(newRequest);
+                    })
+                    .connectTimeout(Duration.ofSeconds(300))
+                    .readTimeout(Duration.ofSeconds(300))
+                    .writeTimeout(Duration.ofSeconds(300))
+                    .build();
+
+            Retrofit retrofit = new Retrofit.Builder()
+                    .baseUrl(apiUrl)
+                    .client(client)
+                    .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+                    .addConverterFactory(JacksonConverterFactory.create())
+                    .build();
+
+            this.api = retrofit.create(SiliconFlowApi.class);
+
+            log.info("Successfully initialized API client with new key");
+        } catch (Exception e) {
+            log.error("Failed to initialize API client: {}", e.getMessage());
+            throw new RuntimeException("Failed to initialize API client", e);
+        }
+    }
+
     public String correctText(String text, ModelParameters parameters) {
+        initializeApiClient(parameters.getSiliconflowKey());
         try {
             long startTime = System.currentTimeMillis();
             List<SiliconFlowRequest.Message> messages = Arrays.asList(
