@@ -1,6 +1,7 @@
 package com.example.littlepolice.service;
 
 import com.example.littlepolice.api.SiliconFlowApi;
+import com.example.littlepolice.model.ModelParameters;
 import com.example.littlepolice.model.SiliconFlowChatCompletionResult;
 import com.example.littlepolice.model.SiliconFlowRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -87,7 +88,7 @@ public class SiliconFlowService implements DisposableBean {
         }
     }
 
-    public String correctText(String text) {
+    public String correctText(String text, ModelParameters parameters) {
         try {
             long startTime = System.currentTimeMillis();
             List<SiliconFlowRequest.Message> messages = Arrays.asList(
@@ -119,19 +120,20 @@ public class SiliconFlowService implements DisposableBean {
             );
 
             SiliconFlowRequest request = SiliconFlowRequest.builder()
-                    .model("Pro/deepseek-ai/DeepSeek-V3-1226")
+//                    .model("Pro/deepseek-ai/DeepSeek-V3-1226")
+                    .model(parameters.getModel())
                     .messages(messages)
                     .stream(false)
-                    .maxTokens(4096)
-                    .temperature(0.1)
-                    .topP(0.01)
-                    .topK(30)
-                    .frequencyPenalty(0.5)
+                    .maxTokens(parameters.getMaxTokens())
+                    .temperature(parameters.getTemperature())
+                    .topP(parameters.getTopP())
+                    .topK(parameters.getTopK())
+                    .frequencyPenalty(parameters.getFrequencyPenalty())
                     .n(1)
                     .build();
 
             log.info("开始发送API请求，文本长度: {}", text.length());
-//            log.info("请求内容: {}", request);
+            log.info("请求内容: {}", request);
 
             SiliconFlowChatCompletionResult result = api.createChatCompletion(request)
                     .blockingGet();
@@ -153,7 +155,7 @@ public class SiliconFlowService implements DisposableBean {
         }
     }
 
-    public List<String> correctTextsParallel(List<String> texts) {
+    public List<String> correctTextsParallel(List<String> texts, ModelParameters parameters) {
         try {
             log.info("开始并行处理 {} 个批次", texts.size());
             List<CompletableFuture<String>> futures = new ArrayList<>();
@@ -166,7 +168,7 @@ public class SiliconFlowService implements DisposableBean {
                 CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
 //                    log.info("开始处理第 {}/{} 个批次", index + 1, texts.size());
                     try {
-                        String result = correctText(text);
+                        String result = correctText(text, parameters);
 //                        log.info("第 {}/{} 个批次处理完成", index + 1, texts.size());
                         return result;
                     } catch (Exception e) {

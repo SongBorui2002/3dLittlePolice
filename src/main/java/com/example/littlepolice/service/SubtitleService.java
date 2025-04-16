@@ -324,27 +324,27 @@ public class SubtitleService {
         return false;
     }
 
-    public void processSubtitles(List<SubtitleEntry> entries) {
-        List<BatchCorrection> batches = extractTextForCorrection(entries);
-
-        if (batches.isEmpty()) {
-            log.info("没有需要修正的字幕");
-            return;
-        }
-
-        // 收集所有批次的文本
-        List<String> batchTexts = batches.stream()
-                .map(BatchCorrection::getText)
-                .collect(Collectors.toList());
-
-        // 并行处理所有批次
-        List<String> correctedTexts = siliconFlowService.correctTextsParallel(batchTexts);
-
-        // 更新字幕内容
-        for (int i = 0; i < batches.size(); i++) {
-            updateCorrectedText(entries, batches.get(i), correctedTexts.get(i));
-        }
-    }
+//    public void processSubtitles(List<SubtitleEntry> entries) {
+//        List<BatchCorrection> batches = extractTextForCorrection(entries);
+//
+//        if (batches.isEmpty()) {
+//            log.info("没有需要修正的字幕");
+//            return;
+//        }
+//
+//        // 收集所有批次的文本
+//        List<String> batchTexts = batches.stream()
+//                .map(BatchCorrection::getText)
+//                .collect(Collectors.toList());
+//
+//        // 并行处理所有批次
+//        List<String> correctedTexts = siliconFlowService.correctTextsParallel(batchTexts);
+//
+//        // 更新字幕内容
+//        for (int i = 0; i < batches.size(); i++) {
+//            updateCorrectedText(entries, batches.get(i), correctedTexts.get(i));
+//        }
+//    }
 
     public List<String> validateAndFilterModifications(
             List<BatchCorrection> batches,

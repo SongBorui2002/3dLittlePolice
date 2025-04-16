@@ -1,10 +1,12 @@
 package com.example.littlepolice.controller;
 
+import com.example.littlepolice.model.ModelParameters;
 import com.example.littlepolice.model.SubtitleEntry;
 import com.example.littlepolice.service.SiliconFlowService;
 import com.example.littlepolice.service.SubtitleService;
 import com.example.littlepolice.service.SubtitleService.BatchCorrection;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -67,11 +70,17 @@ public class SubtitleController {
     }
 
     @PostMapping("/correct")
-    public ResponseEntity<?> correctSubtitle(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> correctSubtitle(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("parameters") String parametersJson
+    ) {
         long startTime = System.currentTimeMillis();
         try {
-            log.info("开始处理字幕文件: {}, 大小: {} bytes", file.getOriginalFilename(), file.getSize());
 
+            ObjectMapper mapper = new ObjectMapper();
+            ModelParameters parameters = mapper.readValue(parametersJson, ModelParameters.class);
+
+            log.info("开始处理字幕文件: {}, 大小: {} bytes, 使用模型: {}", file.getOriginalFilename(), file.getSize(), parameters.getModel());
 
             // 读取文件内容（使用UTF-8编码）
             log.info("读取文件内容...");
@@ -113,7 +122,7 @@ public class SubtitleController {
             try {
                 //api响应开始
                 long apiStartTime = System.currentTimeMillis();
-                List<String> correctedTexts = siliconflowService.correctTextsParallel(batchTexts);
+                List<String> correctedTexts = siliconflowService.correctTextsParallel(batchTexts, parameters);
 //                log.info("API请求完成，耗时: {}ms", System.currentTimeMillis() - apiStartTime);
 
                 // 在这里添加验证步骤，直接使用已有的batches信息
@@ -125,6 +134,7 @@ public class SubtitleController {
                 // 更新所有批次的修正文本
                 long updateTime = System.currentTimeMillis();
                 for (int i = 0; i < batches.size(); i++) {
+                    //subtitleService.updateCorrectedText(entries, batches.get(i), correctedTexts.get(i));
                     subtitleService.updateCorrectedText(entries, batches.get(i), validatedTexts.get(i));
                 }
 //                log.info("更新字幕文本完成，耗时: {}ms", System.currentTimeMillis() - updateTime);
